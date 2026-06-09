@@ -17,6 +17,10 @@ This is a one-time setup per machine + a one-line deploy after that.
 
 ## One-time setup
 
+Do these **in order**. Each command is ONE line — paste the whole line, then
+press Enter. (If `-c wrangler.deploy.jsonc` ends up on its own line you'll get
+`command not found: -c` — it must stay on the same line as the rest.)
+
 ### 1. Log in to Cloudflare
 
 ```sh
@@ -25,24 +29,35 @@ bunx wrangler login
 
 Opens a browser; authorize with your Cloudflare account. (Free tier is fine.)
 
-### 2. Set the server secrets
+### 2. Create the Worker by deploying once
 
-The server reads these at runtime. They are **secrets** — set them on the Worker
-with `wrangler secret put` (encrypted, never in git). Each command prompts for the
-value; paste it from your local `.env`.
+This creates the Worker on your account (named `on-compare-wall`) so the secrets
+have somewhere to go. The app won't fully work until step 3, that's expected.
 
 ```sh
-bunx wrangler secret put SUPABASE_URL              -c wrangler.deploy.jsonc
-bunx wrangler secret put SUPABASE_PUBLISHABLE_KEY  -c wrangler.deploy.jsonc
-bunx wrangler secret put SUPABASE_SERVICE_ROLE_KEY -c wrangler.deploy.jsonc
-bunx wrangler secret put NODE_RED_PASSWORD         -c wrangler.deploy.jsonc
-bunx wrangler secret put VIEWER_PASSWORD           -c wrangler.deploy.jsonc
-bunx wrangler secret put VIEWER_ACCESS_TOKEN       -c wrangler.deploy.jsonc
+bun run deploy
 ```
 
-> Note: setting secrets the first time may ask to create the Worker
-> (`on-compare-wall`) — say yes. If it refuses because the Worker doesn't exist
-> yet, run `bun run deploy` once first (step below), then set the secrets.
+If it asks to create a new Worker called `on-compare-wall`, say **yes**. It
+prints the live URL when done.
+
+### 3. Set the server secrets
+
+The server reads these at runtime. They're **secrets** (encrypted, never in git).
+Run each line, press Enter, then paste the value from your local `.env` at the
+`Enter a secret value:` prompt and press Enter again. One at a time:
+
+```sh
+bunx wrangler secret put SUPABASE_URL -c wrangler.deploy.jsonc
+bunx wrangler secret put SUPABASE_PUBLISHABLE_KEY -c wrangler.deploy.jsonc
+bunx wrangler secret put SUPABASE_SERVICE_ROLE_KEY -c wrangler.deploy.jsonc
+bunx wrangler secret put NODE_RED_PASSWORD -c wrangler.deploy.jsonc
+bunx wrangler secret put VIEWER_PASSWORD -c wrangler.deploy.jsonc
+bunx wrangler secret put VIEWER_ACCESS_TOKEN -c wrangler.deploy.jsonc
+```
+
+(The Worker already exists from step 2, so these won't prompt to create it.)
+Secrets take effect immediately — no need to redeploy after setting them.
 
 ### Build-time config (the browser bundle)
 
