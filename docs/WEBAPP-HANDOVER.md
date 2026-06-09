@@ -44,13 +44,13 @@ A 2×2 grid filling a portrait screen — split **left / right** (one shoe per s
   colour drops down, then a **black stat panel** drops over it showing the **experience**
   header, three **bar graphs** (Cushioning / Responsiveness / Stability, 1–5), and data rows
   (Activity, Best For, Ride Type/Feel, Recommended Distance).
-- **One shoe only:** the *opposite* empty half shows that shoe's full-height **"key look"
+- **One shoe only:** the _opposite_ empty half shows that shoe's full-height **"key look"
   lookbook image**, which fades + brightens in.
 - **Idle:** the On logo, top-right.
 
 **Motion language:** staggered panel drops (colour then black on open; reverse on close),
 opacity/blur fades, a brightness ramp on the key look. Key trick — on removal the app keeps
-rendering the last shoe briefly so panels animate *out* instead of snapping to empty. All
+rendering the last shoe briefly so panels animate _out_ instead of snapping to empty. All
 timings are named in `src/constants/animation.ts`.
 
 **Scaling (non-obvious):** all sizing is computed in **JavaScript** against a fixed 1920px
@@ -75,6 +75,7 @@ RFID reader → Python bridge ─┐                         ┌─ Supabase Rea
 ```
 
 A scan's life:
+
 1. Bridge/emulator POSTs `{ event_type, side, ean }` to the ingest endpoint with the bearer token.
 2. `handleShoeEventIngest` (`src/lib/shoe-event-ingest.server.ts`): verifies the token
    (constant-time), reads the slot's current ean, **broadcasts** on the `shoe-events`
@@ -103,14 +104,14 @@ app only reads + displays.
 
 **Operational objects** (created by [`on-showroom-data-app-backend.sql`](./on-showroom-data-app-backend.sql)):
 
-| Object | Role |
-|---|---|
-| `shoe_slots` (2 rows) | live left/right state; in the Realtime publication |
-| `shoe_events` | append-only audit log of every scan |
-| `shoe_split_videos` | shoe `commercial_name` → demo video filename in the bucket |
-| storage bucket `shoe-assets` (private) | split videos; served via short-lived signed URLs |
-| Realtime policy on `realtime.messages` | lets authenticated clients subscribe to `shoe-events` |
-| RLS | authenticated-read on the app tables; storage locked to service-role |
+| Object                                 | Role                                                                 |
+| -------------------------------------- | -------------------------------------------------------------------- |
+| `shoe_slots` (2 rows)                  | live left/right state; in the Realtime publication                   |
+| `shoe_events`                          | append-only audit log of every scan                                  |
+| `shoe_split_videos`                    | shoe `commercial_name` → demo video filename in the bucket           |
+| storage bucket `shoe-assets` (private) | split videos; served via short-lived signed URLs                     |
+| Realtime policy on `realtime.messages` | lets authenticated clients subscribe to `shoe-events`                |
+| RLS                                    | authenticated-read on the app tables; storage locked to service-role |
 
 **Auth users:** `viewer@local.app` (the read-only wall display) and `node-red@local.app` (the
 scanner role). The app auto-creates them on first login via the service-role key — no manual SQL.
@@ -232,7 +233,7 @@ Key scripts (`package.json`): `bun run dev` · `bun run build` · `bun run lint`
   component props (shared types in `types/wall.ts`).
 - **`bun run lint` is green and `tsc --noEmit` is clean.** Generated/vendored files are
   excluded from lint (`eslint.config.js`) + prettier (`.prettierignore`).
-- **Comments explain *why*** (intent, timing, Vuplex/Realtime gotchas), JSDoc on exports.
+- **Comments explain _why_** (intent, timing, Vuplex/Realtime gotchas), JSDoc on exports.
 - **Commits:** small and focused; per-chunk; messages describe intent. (This repo's commits
   intentionally omit a co-author trailer.)
 - **Secrets** never in git: `.env` / `.dev.vars` are gitignored; `.env.example` documents the
@@ -260,7 +261,7 @@ Key scripts (`package.json`): `bun run dev` · `bun run build` · `bun run lint`
   `compare_wall`. Ops objects via [`on-showroom-data-app-backend.sql`](./on-showroom-data-app-backend.sql).
 - **Repo:** `github.com/tieswwww/On-Compare-Wall-Webapp` (branch `main`).
 - **Ingest contract:** `POST /api/public/ingest/shoe-event`, `Authorization: Bearer
-  <NODE_RED_PASSWORD>`, body `{ "event_type": "scanned|swapped|removed", "side": "left|right",
-  "ean": "<EAN-13>" }` (`ean` omitted on `removed`).
+<NODE_RED_PASSWORD>`, body `{ "event_type": "scanned|swapped|removed", "side": "left|right",
+"ean": "<EAN-13>" }` (`ean` omitted on `removed`).
 - **Related:** [`LOCAL-SETUP.md`](./LOCAL-SETUP.md) (run + gotchas), `AI-CHANNEL.md` (cross-team
   coordination, in the `on-compare-grid` repo).
