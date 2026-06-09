@@ -2,9 +2,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { CatalogRow } from "@/types/wall";
+import { selectImageUrl } from "@/lib/images";
 
-// Columns actually consumed by the wall UI. Keep in sync with the `Shoe`
-// type in src/routes/index.tsx.
+// Columns selected from the catalog view. Keep in sync with `CatalogRow` /
+// `Shoe` in src/types/wall.ts.
 const SHOE_COLUMNS = [
   "ean",
   "commercial_name",
@@ -46,14 +48,11 @@ export const getShoeByEan = createServerFn({ method: "POST" })
       .from(CATALOG_RELATION)
       .select(SHOE_COLUMNS)
       .eq("ean", data.ean)
-      .maybeSingle<any>();
+      .maybeSingle<CatalogRow>();
 
     if (!shoe) return { shoe: null };
 
-    const imageUrl =
-      shoe.gallery_image_url ?? shoe.highlight_image_urls?.[0] ?? shoe.thumbnail_url ?? null;
-
-    return { shoe: { ...shoe, image_url: imageUrl } };
+    return { shoe: { ...shoe, image_url: selectImageUrl(shoe) } };
   });
 
 // Full catalog prefetch. Returns every shoe (used columns only) and a
@@ -65,15 +64,14 @@ export const getShoeCatalog = createServerFn({ method: "GET" })
     const { data: shoesRows, error: shoesErr } = await supabaseAdmin
       .from(CATALOG_RELATION)
       .select(SHOE_COLUMNS)
-      .returns<any[]>();
+      .returns<CatalogRow[]>();
     if (shoesErr) throw new Error(shoesErr.message);
 
-    const shoes = (shoesRows ?? []).map((shoe: any) => {
-      const image_url =
-        shoe.gallery_image_url ?? shoe.highlight_image_urls?.[0] ?? shoe.thumbnail_url ?? null;
-      // Strip image source columns from the wire payload — only image_url is used.
+    const shoes = (shoesRows ?? []).map((shoe) => {
+      // Strip the image-source columns from the wire payload — the client only
+      // needs the single coalesced image_url.
       const { gallery_image_url: _g, highlight_image_urls: _h, thumbnail_url: _t, ...rest } = shoe;
-      return { ...rest, image_url };
+      return { ...rest, image_url: selectImageUrl(shoe) };
     });
 
     const { data: splitRows, error: splitErr } = await supabaseAdmin

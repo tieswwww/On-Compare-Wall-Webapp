@@ -52,3 +52,15 @@ export type Shoe = {
   image_url: string | null;
   lookbook_url: string | null;
 };
+
+/**
+ * A raw catalog row as selected from the `compare_wall` view (the SHOE_COLUMNS
+ * list in src/lib/shoes.functions.ts). It carries the three image-source
+ * columns; the UI `Shoe` collapses those into a single `image_url` via
+ * `selectImageUrl` (src/lib/images.ts).
+ */
+export type CatalogRow = Omit<Shoe, "image_url"> & {
+  gallery_image_url: string | null;
+  highlight_image_urls: string[] | null;
+  thumbnail_url: string | null;
+};
