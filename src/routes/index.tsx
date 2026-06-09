@@ -17,7 +17,6 @@ function IdleBackground(_: { visible: boolean }) {
   );
 }
 
-
 import { useEffect, useMemo, useRef, useState, type FormEvent, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { exchangeAccessToken, signInWithUsername } from "@/lib/access.functions";
@@ -171,13 +170,7 @@ function DataItem({ label, value }: { label: string; value: string | null | unde
 }
 
 /* ---------- top quadrant: video + name ---------- */
-function TopQuadrant({
-  shoe,
-  videoUrl,
-}: {
-  shoe: Shoe | null;
-  videoUrl: string | null;
-}) {
+function TopQuadrant({ shoe, videoUrl }: { shoe: Shoe | null; videoUrl: string | null }) {
   const { u, ut, px } = useU();
   const [displayedVideoUrl, setDisplayedVideoUrl] = useState<string | null>(videoUrl);
   const [videoLoaded, setVideoLoaded] = useState(false);
@@ -215,10 +208,7 @@ function TopQuadrant({
   const videoVisible = !!videoUrl && videoLoaded && videoDelayElapsed;
 
   const techText = displayedShoe?.technology
-    ? displayedShoe.technology
-        .split(/,\s*/)
-        .filter(Boolean)
-        .join("  |  ")
+    ? displayedShoe.technology.split(/,\s*/).filter(Boolean).join("  |  ")
     : null;
 
   return (
@@ -264,10 +254,7 @@ function TopQuadrant({
           transition: "opacity 400ms ease-in-out, filter 400ms ease-in-out",
         }}
       >
-        <div
-          className="font-sans font-bold text-black"
-          style={{ ...px(72), lineHeight: 1 }}
-        >
+        <div className="font-sans font-bold text-black" style={{ ...px(72), lineHeight: 1 }}>
           {displayedShoe?.commercial_name ?? "—"}
         </div>
         {techText ? (
@@ -282,7 +269,6 @@ function TopQuadrant({
     </div>
   );
 }
-
 
 /* ---------- bottom quadrant: two-stage reveal ----------
    Stage 1: color panel (sales color) drops down from top.
@@ -336,56 +322,53 @@ function BottomQuadrant({ shoe, open }: { shoe: Shoe | null; open: boolean }) {
         }}
       >
         {/* Top-aligned, horizontally centered column. Items inside stay left-aligned. */}
-        <div
-          className="flex h-full w-full flex-col items-center"
-          style={{ paddingTop: u(119) }}
-        >
-         <div className="flex flex-col items-start" style={{ width: "fit-content" }}>
-          {/* Energy header */}
-          <div
-            className="font-sans font-bold text-[#EBEEF0]"
-            style={{ ...px(66), lineHeight: 1, marginBottom: u(40) }}
-          >
-            {s?.experience ?? "Energy"}
-          </div>
+        <div className="flex h-full w-full flex-col items-center" style={{ paddingTop: u(119) }}>
+          <div className="flex flex-col items-start" style={{ width: "fit-content" }}>
+            {/* Energy header */}
+            <div
+              className="font-sans font-bold text-[#EBEEF0]"
+              style={{ ...px(66), lineHeight: 1, marginBottom: u(40) }}
+            >
+              {s?.experience ?? "Energy"}
+            </div>
 
-          {/* Bar graph stats */}
-          <div style={{ marginBottom: u(62) }}>
-            <div style={{ marginBottom: u(24) }}>
-              <div
-                className="font-mono uppercase text-[#EBEEF0]/55"
-                style={{ ...px(29), letterSpacing: ut(1.5), marginBottom: ut(18) }}
-              >
-                Cushioning
+            {/* Bar graph stats */}
+            <div style={{ marginBottom: u(62) }}>
+              <div style={{ marginBottom: u(24) }}>
+                <div
+                  className="font-mono uppercase text-[#EBEEF0]/55"
+                  style={{ ...px(29), letterSpacing: ut(1.5), marginBottom: ut(18) }}
+                >
+                  Cushioning
+                </div>
+                <BarGraph value={s?.cushioning_scale} />
               </div>
-              <BarGraph value={s?.cushioning_scale} />
-            </div>
-            <div style={{ marginBottom: u(24) }}>
-              <div
-                className="font-mono uppercase text-[#EBEEF0]/55"
-                style={{ ...px(29), letterSpacing: ut(1.5), marginBottom: ut(18) }}
-              >
-                Responsiveness
+              <div style={{ marginBottom: u(24) }}>
+                <div
+                  className="font-mono uppercase text-[#EBEEF0]/55"
+                  style={{ ...px(29), letterSpacing: ut(1.5), marginBottom: ut(18) }}
+                >
+                  Responsiveness
+                </div>
+                <BarGraph value={s?.responsiveness_scale} />
               </div>
-              <BarGraph value={s?.responsiveness_scale} />
-            </div>
-            <div>
-              <div
-                className="font-mono uppercase text-[#EBEEF0]/55"
-                style={{ ...px(29), letterSpacing: ut(1.5), marginBottom: ut(18) }}
-              >
-                Stability
+              <div>
+                <div
+                  className="font-mono uppercase text-[#EBEEF0]/55"
+                  style={{ ...px(29), letterSpacing: ut(1.5), marginBottom: ut(18) }}
+                >
+                  Stability
+                </div>
+                <BarGraph value={s?.stability_scale} />
               </div>
-              <BarGraph value={s?.stability_scale} />
             </div>
-          </div>
 
-          {/* Data items */}
-          <DataItem label="Activity" value={s?.activity_type} />
-          <DataItem label="Best For" value={s?.activity_best_for} />
-          <DataItem label="Ride Type/Feel" value={s?.ride_type} />
-          <DataItem label="Recommended Distance" value={s?.recommended_distance} />
-         </div>
+            {/* Data items */}
+            <DataItem label="Activity" value={s?.activity_type} />
+            <DataItem label="Best For" value={s?.activity_best_for} />
+            <DataItem label="Ride Type/Feel" value={s?.ride_type} />
+            <DataItem label="Recommended Distance" value={s?.recommended_distance} />
+          </div>
         </div>
       </div>
     </div>
@@ -413,11 +396,7 @@ function Index() {
     const stripTokenParam = (params: URLSearchParams) => {
       params.delete("k");
       const qs = params.toString();
-      window.history.replaceState(
-        {},
-        "",
-        window.location.pathname + (qs ? `?${qs}` : ""),
-      );
+      window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
     };
 
     (async () => {
@@ -531,24 +510,21 @@ function Index() {
 
   const shoes: Record<Side, Shoe | null> = useMemo(
     () => ({
-      left: slots.left.ean ? byEan.get(slots.left.ean) ?? null : null,
-      right: slots.right.ean ? byEan.get(slots.right.ean) ?? null : null,
+      left: slots.left.ean ? (byEan.get(slots.left.ean) ?? null) : null,
+      right: slots.right.ean ? (byEan.get(slots.right.ean) ?? null) : null,
     }),
     [slots.left.ean, slots.right.ean, byEan],
   );
 
   const videoUrls: Record<Side, string | null> = useMemo(
     () => ({
-      left: shoes.left?.commercial_name
-        ? splitByName[shoes.left.commercial_name] ?? null
-        : null,
+      left: shoes.left?.commercial_name ? (splitByName[shoes.left.commercial_name] ?? null) : null,
       right: shoes.right?.commercial_name
-        ? splitByName[shoes.right.commercial_name] ?? null
+        ? (splitByName[shoes.right.commercial_name] ?? null)
         : null,
     }),
     [shoes.left, shoes.right, splitByName],
   );
-
 
   async function applySession(tokens: { access_token: string; refresh_token: string }) {
     const { supabase } = await import("@/integrations/supabase/client");
@@ -582,7 +558,6 @@ function Index() {
   useEffect(() => {
     prevBothRef.current = bothScannedNow;
   }, [bothScannedNow]);
-
 
   if (authState === "checking") {
     return (
@@ -638,23 +613,23 @@ function Index() {
     leftScanned && !rightScanned ? "right" : !leftScanned && rightScanned ? "left" : null;
   const keyLookUrl =
     keyLookLeftSide === "right"
-      ? shoes.left?.lookbook_url ?? null
+      ? (shoes.left?.lookbook_url ?? null)
       : keyLookLeftSide === "left"
-      ? shoes.right?.lookbook_url ?? null
-      : null;
+        ? (shoes.right?.lookbook_url ?? null)
+        : null;
 
   // Delay only when the overlay appears because a shoe was REMOVED.
   const keyLookDelayMs = keyLookLeftSide && prevBothRef.current ? 1400 : 300;
 
-
   return (
-    <main className="relative grid h-screen w-screen grid-cols-2 grid-rows-2 overflow-hidden" style={{ backgroundColor: "#EBEEF0" }}>
+    <main
+      className="relative grid h-screen w-screen grid-cols-2 grid-rows-2 overflow-hidden"
+      style={{ backgroundColor: "#EBEEF0" }}
+    >
       {/* Idle background video — shown only when no shoe is scanned */}
       <IdleBackground visible={!leftScanned && !rightScanned} />
       {/* Key look overlay sits behind everything */}
       <KeyLookOverlay side={keyLookLeftSide} url={keyLookUrl} delayMs={keyLookDelayMs} />
-
-
 
       {/* Top row */}
       <TopQuadrant shoe={shoes.left} videoUrl={videoUrls.left} />
@@ -666,7 +641,15 @@ function Index() {
   );
 }
 
-function KeyLookOverlay({ side, url, delayMs = 0 }: { side: Side | null; url: string | null; delayMs?: number }) {
+function KeyLookOverlay({
+  side,
+  url,
+  delayMs = 0,
+}: {
+  side: Side | null;
+  url: string | null;
+  delayMs?: number;
+}) {
   const [displayedUrl, setDisplayedUrl] = useState<string | null>(url);
   const [displayedSide, setDisplayedSide] = useState<Side | null>(side);
   const [loaded, setLoaded] = useState(false);
@@ -701,7 +684,6 @@ function KeyLookOverlay({ side, url, delayMs = 0 }: { side: Side | null; url: st
     return () => clearTimeout(t);
   }, [url, side]);
 
-
   const visible = !!url && loaded && delayElapsed;
 
   // Start lightening shortly after the fade-in begins so the two transitions overlap.
@@ -713,7 +695,6 @@ function KeyLookOverlay({ side, url, delayMs = 0 }: { side: Side | null; url: st
     const t = setTimeout(() => setLit(true), 0);
     return () => clearTimeout(t);
   }, [visible]);
-
 
   if (!displayedUrl || !displayedSide) return null;
 
@@ -729,7 +710,6 @@ function KeyLookOverlay({ side, url, delayMs = 0 }: { side: Side | null; url: st
         transition: `opacity 1000ms ease-in-out, transform 1000ms ${visible ? "ease-out" : "ease-in"}`,
       }}
     >
-
       <img
         key={displayedUrl}
         src={displayedUrl}
@@ -739,7 +719,10 @@ function KeyLookOverlay({ side, url, delayMs = 0 }: { side: Side | null; url: st
           const img = e.currentTarget;
           // Wait for decode so the fade only starts once pixels are ready to paint.
           if (img.decode) {
-            img.decode().then(() => setLoaded(true)).catch(() => setLoaded(true));
+            img
+              .decode()
+              .then(() => setLoaded(true))
+              .catch(() => setLoaded(true));
           } else {
             setLoaded(true);
           }
@@ -753,4 +736,3 @@ function KeyLookOverlay({ side, url, delayMs = 0 }: { side: Side | null; url: st
     </div>
   );
 }
-

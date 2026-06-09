@@ -27,15 +27,12 @@ async function ensureUser(email: string, password: string) {
   });
 }
 
-
 /**
  * Exchange the shared access token for a Supabase session.
  * On success, returns access + refresh tokens the client can persist.
  */
 export const exchangeAccessToken = createServerFn({ method: "POST" })
-  .inputValidator((input) =>
-    z.object({ token: z.string().min(1).max(512) }).parse(input),
-  )
+  .inputValidator((input) => z.object({ token: z.string().min(1).max(512) }).parse(input))
   .handler(async ({ data }) => {
     const expected = process.env.VIEWER_ACCESS_TOKEN;
     const viewerPassword = process.env.VIEWER_PASSWORD;
@@ -53,11 +50,10 @@ export const exchangeAccessToken = createServerFn({ method: "POST" })
     await ensureUser(NODE_RED_EMAIL, nodeRedPassword);
 
     // Mint a session for the viewer.
-    const { data: session, error } =
-      await supabaseAdmin.auth.signInWithPassword({
-        email: VIEWER_EMAIL,
-        password: viewerPassword,
-      });
+    const { data: session, error } = await supabaseAdmin.auth.signInWithPassword({
+      email: VIEWER_EMAIL,
+      password: viewerPassword,
+    });
     if (error || !session.session) {
       throw new Error(error?.message ?? "Sign-in failed");
     }
@@ -93,11 +89,10 @@ export const signInWithUsername = createServerFn({ method: "POST" })
     await ensureUser(VIEWER_EMAIL, viewerPassword);
     await ensureUser(NODE_RED_EMAIL, nodeRedPassword);
 
-    const { data: session, error } =
-      await supabaseAdmin.auth.signInWithPassword({
-        email: VIEWER_EMAIL,
-        password: data.password,
-      });
+    const { data: session, error } = await supabaseAdmin.auth.signInWithPassword({
+      email: VIEWER_EMAIL,
+      password: data.password,
+    });
     if (error || !session.session) {
       throw new Error("Invalid username or password");
     }

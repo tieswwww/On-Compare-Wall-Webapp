@@ -6,3 +6,11 @@ pnpm-lock.yaml
 package-lock.json
 bun.lock
 routeTree.gen.ts
+
+# Generated / vendored — leave as-is (see .claude code-quality decisions)
+src/components/ui
+src/integrations/supabase/client.ts
+src/integrations/supabase/client.server.ts
+src/integrations/supabase/auth-middleware.ts
+src/integrations/supabase/auth-attacher.ts
+src/integrations/supabase/types.ts

@@ -40,9 +40,7 @@ const CATALOG_RELATION = "compare_wall";
 
 export const getShoeByEan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
-    z.object({ ean: z.string().min(1).max(32) }).parse(input),
-  )
+  .inputValidator((input) => z.object({ ean: z.string().min(1).max(32) }).parse(input))
   .handler(async ({ data }) => {
     const { data: shoe } = await supabaseAdmin
       .from(CATALOG_RELATION)
@@ -53,10 +51,7 @@ export const getShoeByEan = createServerFn({ method: "POST" })
     if (!shoe) return { shoe: null };
 
     const imageUrl =
-      shoe.gallery_image_url ??
-      shoe.highlight_image_urls?.[0] ??
-      shoe.thumbnail_url ??
-      null;
+      shoe.gallery_image_url ?? shoe.highlight_image_urls?.[0] ?? shoe.thumbnail_url ?? null;
 
     return { shoe: { ...shoe, image_url: imageUrl } };
   });
@@ -75,17 +70,9 @@ export const getShoeCatalog = createServerFn({ method: "GET" })
 
     const shoes = (shoesRows ?? []).map((shoe: any) => {
       const image_url =
-        shoe.gallery_image_url ??
-        shoe.highlight_image_urls?.[0] ??
-        shoe.thumbnail_url ??
-        null;
+        shoe.gallery_image_url ?? shoe.highlight_image_urls?.[0] ?? shoe.thumbnail_url ?? null;
       // Strip image source columns from the wire payload — only image_url is used.
-      const {
-        gallery_image_url: _g,
-        highlight_image_urls: _h,
-        thumbnail_url: _t,
-        ...rest
-      } = shoe;
+      const { gallery_image_url: _g, highlight_image_urls: _h, thumbnail_url: _t, ...rest } = shoe;
       return { ...rest, image_url };
     });
 
@@ -102,23 +89,16 @@ export const getShoeCatalog = createServerFn({ method: "GET" })
     await Promise.all(
       (splitRows ?? []).map(async (row) => {
         const path = `splits/${row.video_filename}`;
-        const res = await fetch(
-          `${supabaseUrl}/storage/v1/object/sign/shoe-assets/${path}`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${serviceKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ expiresIn: SIGNED_URL_TTL_SECONDS }),
+        const res = await fetch(`${supabaseUrl}/storage/v1/object/sign/shoe-assets/${path}`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${serviceKey}`,
+            "Content-Type": "application/json",
           },
-        );
+          body: JSON.stringify({ expiresIn: SIGNED_URL_TTL_SECONDS }),
+        });
         if (!res.ok) {
-          console.error(
-            "[getShoeCatalog] sign failed",
-            row.commercial_name,
-            res.status,
-          );
+          console.error("[getShoeCatalog] sign failed", row.commercial_name, res.status);
           return;
         }
         const { signedURL } = (await res.json()) as { signedURL: string };
@@ -139,9 +119,7 @@ const signedUrlCache = new Map<string, { url: string; expiresAt: number }>();
 
 export const getSplitVideoUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
-    z.object({ commercial_name: z.string().min(1).max(128) }).parse(input),
-  )
+  .inputValidator((input) => z.object({ commercial_name: z.string().min(1).max(128) }).parse(input))
   .handler(async ({ data }) => {
     const cached = signedUrlCache.get(data.commercial_name);
     if (cached && cached.expiresAt - Date.now() > SIGNED_URL_REFRESH_BEFORE_MS) {
@@ -163,17 +141,14 @@ export const getSplitVideoUrl = createServerFn({ method: "POST" })
     const supabaseUrl = process.env.SUPABASE_URL!;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
     const path = `splits/${row.video_filename}`;
-    const res = await fetch(
-      `${supabaseUrl}/storage/v1/object/sign/shoe-assets/${path}`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${serviceKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ expiresIn: SIGNED_URL_TTL_SECONDS }),
+    const res = await fetch(`${supabaseUrl}/storage/v1/object/sign/shoe-assets/${path}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${serviceKey}`,
+        "Content-Type": "application/json",
       },
-    );
+      body: JSON.stringify({ expiresIn: SIGNED_URL_TTL_SECONDS }),
+    });
     if (!res.ok) {
       console.error("[getSplitVideoUrl] sign failed", res.status);
       return { url: null };
@@ -185,5 +160,4 @@ export const getSplitVideoUrl = createServerFn({ method: "POST" })
       expiresAt: Date.now() + SIGNED_URL_TTL_SECONDS * 1000,
     });
     return { url };
-
   });

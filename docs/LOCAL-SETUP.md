@@ -29,7 +29,9 @@
 bun install
 bun run dev          # → http://localhost:8080
 ```
+
 Log in either way:
+
 - **Magic link:** `http://localhost:8080/?k=<VIEWER_ACCESS_TOKEN>`
 - **Form:** username `viewer`, password `<VIEWER_PASSWORD>`
 
@@ -38,12 +40,12 @@ Log in either way:
 ## Environment — the #1 gotcha
 
 **Local dev reads `.env`, NOT `.dev.vars`.** `bun run dev` is a plain Node/Nitro
-server; `.dev.vars` only matters for the Cloudflare/Wrangler *deploy* path, which
+server; `.dev.vars` only matters for the Cloudflare/Wrangler _deploy_ path, which
 this dev server doesn't use. So **all local config — including secrets — goes in
 `.env`** (which is gitignored, so that's safe).
 
 > Symptom if a secret is missing/in the wrong file: the login shows **"Invalid
-> username or password"** — which really means *the server couldn't read its env*
+> username or password"** — which really means _the server couldn't read its env_
 > (it surfaces every login error with that one generic message).
 
 **`VITE_` vs plain names:** `VITE_*` vars are exposed to the **browser**; plain names
@@ -52,15 +54,15 @@ server), so the same URL + anon key appear under both names. That's expected, no
 
 **Required vars (all in `.env`):**
 
-| Var | Used by | Where to get it |
-|---|---|---|
-| `SUPABASE_URL` / `VITE_SUPABASE_URL` | server / browser | Supabase → on-showroom-data → Settings → API → Project URL |
-| `SUPABASE_PUBLISHABLE_KEY` / `VITE_SUPABASE_PUBLISHABLE_KEY` | server / browser | same page → anon / publishable key |
-| `VITE_SUPABASE_PROJECT_ID` | browser | `dlcogzpcduadrshlxqrr` |
-| `SUPABASE_SERVICE_ROLE_KEY` | server | same page → **service_role** (secret) |
-| `NODE_RED_PASSWORD` | ingest auth | **you invent** (emulator/bridge must use the same value) |
-| `VIEWER_PASSWORD` | viewer login | **you invent** |
-| `VIEWER_ACCESS_TOKEN` | magic-link `/?k=` | **you invent** |
+| Var                                                          | Used by           | Where to get it                                            |
+| ------------------------------------------------------------ | ----------------- | ---------------------------------------------------------- |
+| `SUPABASE_URL` / `VITE_SUPABASE_URL`                         | server / browser  | Supabase → on-showroom-data → Settings → API → Project URL |
+| `SUPABASE_PUBLISHABLE_KEY` / `VITE_SUPABASE_PUBLISHABLE_KEY` | server / browser  | same page → anon / publishable key                         |
+| `VITE_SUPABASE_PROJECT_ID`                                   | browser           | `dlcogzpcduadrshlxqrr`                                     |
+| `SUPABASE_SERVICE_ROLE_KEY`                                  | server            | same page → **service_role** (secret)                      |
+| `NODE_RED_PASSWORD`                                          | ingest auth       | **you invent** (emulator/bridge must use the same value)   |
+| `VIEWER_PASSWORD`                                            | viewer login      | **you invent**                                             |
+| `VIEWER_ACCESS_TOKEN`                                        | magic-link `/?k=` | **you invent**                                             |
 
 `.env.example` documents these with no values. **Restart `bun run dev` after editing `.env`** (env is read at startup).
 
@@ -98,8 +100,10 @@ The emulator lives in the **other repo** (`on-compare-grid/emulator/`). It posts
 webhook the real bridge does. Two ways to drive the wall:
 
 ### A) Quick test — `curl` (zero changes anywhere)
+
 With the wall running, fire events at it directly (use an EAN that exists in
 `compare_wall`, e.g. Cloudboom Max `7615537532448`):
+
 ```bash
 curl -X POST http://localhost:8080/api/public/ingest/shoe-event \
   -H "Authorization: Bearer <NODE_RED_PASSWORD>" \
@@ -109,8 +113,10 @@ curl -X POST http://localhost:8080/api/public/ingest/shoe-event \
 ```
 
 ### B) Emulator UI (nicer, repeatable)
+
 opus_ties made the emulator's target/token/UI-port **env-overridable** (defaults unchanged).
 Point it at the local wall and run its UI on a non-colliding port (8090):
+
 ```bash
 cd on-compare-grid/emulator
 EMU_WEBHOOK_URL=http://localhost:8080/api/public/ingest/shoe-event \
@@ -118,6 +124,7 @@ EMU_WEBHOOK_BEARER=<NODE_RED_PASSWORD> EMU_UI_PORT=8090 \
 PYTHONPATH=.. ./.venv/bin/python main.py
 # emulator UI → http://localhost:8090 (wall stays on :8080). Click Place / Swap / Remove.
 ```
+
 - `EMU_WEBHOOK_BEARER` = the app's `NODE_RED_PASSWORD` (Ties shares it privately).
 - Pick shoes whose EANs are in `compare_wall` (the emulator's `eans.txt` is a mix — the
   Cloudboom Max entries resolve). The emulator boots in **emulate** (button) mode — no hardware needed.
