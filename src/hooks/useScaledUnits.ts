@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 
 /**
  * Height-only UI scaling for the wall.
@@ -52,22 +52,31 @@ const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffec
  */
 export function useScaledUnits() {
   const [, force] = useState(0);
+  // The server renders with scale 1 (no `window`). React trusts the server
+  // markup during hydration and will NOT rewrite inline styles that merely
+  // differ — so if the first CLIENT render used the real scale, React's record
+  // would say "correct" while the DOM kept the server's huge values, and no
+  // later re-render (same value) would ever write them. Only a window resize
+  // (a genuinely new value) would patch the DOM — hence "huge until you resize".
+  //
+  // Fix: render scale 1 on the first client paint too (matches the server, so
+  // React's record = 1), then flip to the real scale in a layout effect. Now the
+  // value genuinely changed → React writes the correct styles to the DOM, before
+  // the browser paints (no flash, no hydration mismatch).
+  const hydratedRef = useRef(false);
   useIsomorphicLayoutEffect(() => {
     const rerender = () => force((x) => x + 1);
     scaleListeners.add(rerender);
-    // Recompute against the ACTUAL viewport at mount, before paint. innerHeight
-    // may not have been settled when the module first loaded (fresh tab, or the
-    // Vuplex surface sizing late) — previously only a window resize recomputed
-    // it, so the first paint could use a stale scale and render huge. This makes
-    // the first frame correct without a resize.
+    hydratedRef.current = true;
     recomputeScale();
-    rerender();
+    rerender(); // commit the real-scale render — differs from the scale-1 first render
     return () => {
       scaleListeners.delete(rerender);
     };
   }, []);
-  const u = (n: number): string => `${(n * scale).toFixed(2)}px`;
-  const ut = (n: number): string => `${(n * scale * 0.7).toFixed(2)}px`;
+  const s = hydratedRef.current ? scale : 1;
+  const u = (n: number): string => `${(n * s).toFixed(2)}px`;
+  const ut = (n: number): string => `${(n * s * 0.7).toFixed(2)}px`;
   const px = (n: number): CSSProperties => ({ fontSize: ut(n) });
   return { u, ut, px };
 }
