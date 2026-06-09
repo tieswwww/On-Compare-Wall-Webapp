@@ -239,6 +239,20 @@ function TopQuadrant({
         />
       ) : null}
 
+      {/* Fallback: static product photo when this shoe has no split video.
+          Most catalog shoes have a gallery image but no demo video (yet). */}
+      {!displayedVideoUrl && displayedShoe?.image_url ? (
+        <img
+          key={displayedShoe.image_url}
+          src={displayedShoe.image_url}
+          alt=""
+          className={`pointer-events-none absolute inset-0 h-full w-full object-contain transition-opacity duration-500 ${
+            shoe?.image_url ? "opacity-100" : "opacity-0"
+          }`}
+          style={{ paddingTop: u(125), paddingBottom: u(240) }}
+        />
+      ) : null}
+
       {/* Name + tech: anchored to the bottom of the top quadrant.
           Position is fixed regardless of whether a video is loaded. */}
       <div
@@ -394,6 +408,18 @@ function Index() {
     if (typeof window === "undefined") return;
     let cancelled = false;
 
+    // Remove the one-time magic token from the URL + history once we've used it
+    // (on success OR failure), so it isn't left visible on screen.
+    const stripTokenParam = (params: URLSearchParams) => {
+      params.delete("k");
+      const qs = params.toString();
+      window.history.replaceState(
+        {},
+        "",
+        window.location.pathname + (qs ? `?${qs}` : ""),
+      );
+    };
+
     (async () => {
       const { supabase } = await import("@/integrations/supabase/client");
       const { data: existing } = await supabase.auth.getSession();
@@ -417,17 +443,11 @@ function Index() {
         });
         if (error) throw error;
 
-        params.delete("k");
-        const qs = params.toString();
-        window.history.replaceState(
-          {},
-          "",
-          window.location.pathname + (qs ? `?${qs}` : ""),
-        );
-
+        stripTokenParam(params);
         if (!cancelled) setAuthState("authed");
       } catch (err) {
         console.error("Access token exchange failed", err);
+        stripTokenParam(params);
         if (!cancelled) setAuthState("denied");
       }
     })();
@@ -451,8 +471,13 @@ function Index() {
       supabase
         .from("shoe_slots")
         .select("*")
-        .then(({ data }) => {
-          if (!mounted || !data) return;
+        .then(({ data, error }) => {
+          if (!mounted) return;
+          if (error) {
+            console.error("Failed to load initial shoe_slots", error);
+            return;
+          }
+          if (!data) return;
           setSlots((prev) => {
             const next = { ...prev };
             for (const row of data as Slot[]) next[row.side] = row;

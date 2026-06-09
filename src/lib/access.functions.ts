@@ -1,16 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { safeEqual } from "@/lib/secure";
 
+// Service-account emails for the two non-human roles: the read-only wall
+// display ("viewer") and the scanner/ingest client ("node-red").
 const VIEWER_EMAIL = "viewer@local.app";
 const NODE_RED_EMAIL = "node-red@local.app";
-
-function safeEqual(a: string, b: string) {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}
 
 async function ensureUser(email: string, password: string) {
   // IMPORTANT: do NOT call updateUserById with a password on every login.

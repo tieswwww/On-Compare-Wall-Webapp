@@ -32,6 +32,12 @@ const SHOE_COLUMNS = [
   "lookbook_url",
 ].join(",");
 
+// The product catalog now lives in `on-showroom-data` as the `compare_wall`
+// view (keyed by Sample EAN), built to match SHOE_COLUMNS 1:1. The app's
+// operational tables (shoe_slots/shoe_events/shoe_split_videos) live in the
+// same project. See docs/WEBAPP-HANDOVER.md.
+const CATALOG_RELATION = "compare_wall";
+
 export const getShoeByEan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
@@ -39,7 +45,7 @@ export const getShoeByEan = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const { data: shoe } = await supabaseAdmin
-      .from("shoes")
+      .from(CATALOG_RELATION)
       .select(SHOE_COLUMNS)
       .eq("ean", data.ean)
       .maybeSingle<any>();
@@ -62,7 +68,7 @@ export const getShoeCatalog = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async () => {
     const { data: shoesRows, error: shoesErr } = await supabaseAdmin
-      .from("shoes")
+      .from(CATALOG_RELATION)
       .select(SHOE_COLUMNS)
       .returns<any[]>();
     if (shoesErr) throw new Error(shoesErr.message);
@@ -169,7 +175,7 @@ export const getSplitVideoUrl = createServerFn({ method: "POST" })
       },
     );
     if (!res.ok) {
-      console.error("[getSplitVideoUrl] sign failed", res.status, await res.text());
+      console.error("[getSplitVideoUrl] sign failed", res.status);
       return { url: null };
     }
     const { signedURL } = (await res.json()) as { signedURL: string };

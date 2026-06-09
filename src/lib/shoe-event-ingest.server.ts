@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { safeEqual } from "@/lib/secure";
 
 const PayloadSchema = z.object({
   event_type: z.enum(["scanned", "swapped", "removed"]),
@@ -11,7 +12,7 @@ export async function handleShoeEventIngest(request: Request) {
   const auth = request.headers.get("authorization") ?? "";
   const expected = process.env.NODE_RED_PASSWORD;
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-  if (!expected || token !== expected) {
+  if (!expected || !safeEqual(token, expected)) {
     return new Response("Unauthorized", { status: 401 });
   }
 
