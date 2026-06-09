@@ -11,6 +11,8 @@ import { TopQuadrant } from "@/components/wall/TopQuadrant";
 import { BottomQuadrant } from "@/components/wall/BottomQuadrant";
 import { KeyLookOverlay } from "@/components/wall/KeyLookOverlay";
 import { LoginForm } from "@/components/wall/LoginForm";
+import { PreloadProgress } from "@/components/wall/PreloadProgress";
+import { useAssetPreloader } from "@/hooks/useAssetPreloader";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -44,6 +46,10 @@ function Index() {
   }, [catalog.data]);
 
   const splitByName = useMemo(() => catalog.data?.splitVideos ?? {}, [catalog.data]);
+
+  // Preload all catalog photos at boot so a scanned shoe's image is already
+  // cached and fades in instantly (progress shown on the idle screen).
+  const preload = useAssetPreloader(catalog.data?.shoes);
 
   const leftEan = slots.left.ean;
   const rightEan = slots.right.ean;
@@ -118,6 +124,8 @@ function Index() {
     >
       {/* On logo, behind everything; shows through only when nothing is scanned */}
       <IdleBackground />
+      {/* Boot-time asset-cache progress — idle screen only */}
+      {!leftScanned && !rightScanned ? <PreloadProgress {...preload} /> : null}
       {/* Single-shoe key-look overlay, behind the quadrants */}
       <KeyLookOverlay side={keyLookLeftSide} url={keyLookUrl} delayMs={keyLookDelayMs} />
 
