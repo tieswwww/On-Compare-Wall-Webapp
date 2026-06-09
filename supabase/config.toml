@@ -1,0 +1,4 @@
+project_id = "nngfmzevsttpnxhgffit"
+
+[functions.shoe-events]
+verify_jwt = false
