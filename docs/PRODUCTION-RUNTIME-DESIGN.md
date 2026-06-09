@@ -97,17 +97,19 @@ from reading that table.)
 - **E. MQTT specifics — RESOLVED.** Plugin **`rabbitmq_web_mqtt`** (MQTT over WebSocket). The
   bridge publishes via AMQP to exchange `amq.topic` / routing key `shoe-events`, which the plugin
   maps to **MQTT topic `shoe-events`** — so the browser subscribes to topic `shoe-events`.
-  **Browser WebSocket port `15672`** (Ties; bridge AMQP stays `5672`); exact `wss://…:15672/<path>`
-  + creds confirmed on the POS. Payload **identical** `{event_type, side, ean}` JSON. The bridge
-  publishes to **MQTT and the webhook, configurable per deployment**. Broker is **local on the POS**
-  (Ties: stories start/stop with Wi-Fi off) → live scans work offline. ✅
+  **Browser Web-MQTT WebSocket port `15675`** (`rabbitmq_web_mqtt` default — verified by opus_ties
+  on a real broker; the earlier `15672` was the management-UI port, a mix-up). Bridge AMQP stays
+  `5672`. Payload **identical** `{event_type, side, ean}` JSON. The bridge publishes to **MQTT and
+  the webhook, configurable per deployment**. **Broker = one local broker per POS** → flat topic
+  `shoe-events`, no per-wall namespacing (Ties confirmed). Local broker → live scans work offline. ✅
+  MQTT transport **proven end-to-end** by opus_ties (bridge → AMQP → WebSocket subscriber). ✅
 
 ## Build sequence
 
 1. ~~Transport abstraction + MQTT.js adapter (config-flagged; dev keeps Realtime).~~ **DONE**
    (`VITE_EVENT_TRANSPORT`). `useRealtimeSlots` → transport-agnostic `useShoeSlots`; adapters in
    `src/lib/transport/` (`realtime.ts`, `mqtt.ts`) share the pure `applyShoeEvent` reducer. MQTT.js
-   subscribes to topic `shoe-events` on `VITE_MQTT_URL` (default `ws://localhost:15672/ws`). Dev
+   subscribes to topic `shoe-events` on `VITE_MQTT_URL` (default `ws://localhost:15675/ws`). Dev
    stays on Realtime; live broker test is the POS step below.
 2. Durable catalog cache (fetch → cache → read-offline) via the anon key. _(next)_
 3. Service worker (app shell + durable image cache) for offline reload. _Gated on A (TSS-team)._
@@ -115,8 +117,8 @@ from reading that table.)
    `VITE_KIOSK_MODE`). Short-circuits the auth gate, reads the anon-readable `compare_wall` view
    directly (`src/lib/catalog.client.ts`); verified the anon read returns all SHOE_COLUMNS. Off by
    default → browser/admin flow unchanged.
-5. End-to-end test on the Windows laptop: bridge → local broker → wall, pull the network.
-   _Confirms the exact `wss://…:15672/<path>` + creds._
+5. End-to-end test: bridge → local broker → wall, pull the network. First as a **local MQTT
+   dry-run on the Mac** (local RabbitMQ, `ws://localhost:15675/ws`, guest/guest), then on the POS.
 
 ### Hosting (open — Ties's ask, opus_tsc to do)
 

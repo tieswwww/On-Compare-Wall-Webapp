@@ -35,7 +35,7 @@ export const EVENT_TRANSPORT: EventTransport =
  * `shoe-events` topic on the local RabbitMQ broker (rabbitmq_web_mqtt plugin).
  * Host/port/path/creds are confirmed per-POS — override via VITE_MQTT_*.
  */
-export const MQTT_URL = import.meta.env.VITE_MQTT_URL ?? "ws://localhost:15672/ws";
+export const MQTT_URL = import.meta.env.VITE_MQTT_URL ?? "ws://localhost:15675/ws";
 export const MQTT_TOPIC = import.meta.env.VITE_MQTT_TOPIC ?? "shoe-events";
 export const MQTT_USERNAME: string | undefined = import.meta.env.VITE_MQTT_USERNAME || undefined;
 export const MQTT_PASSWORD: string | undefined = import.meta.env.VITE_MQTT_PASSWORD || undefined;
