@@ -1,252 +1,266 @@
-# ON Compare Wall — Web App Handover
+# ON Compare Wall — Web App Reference
 
-> **What this is:** a single, self-contained brain-dump of the **web app** half of
-> the ON Compare Wall — the on-screen kiosk that visitors actually look at. Written
-> so someone (or another AI assistant) with **no prior context** can understand what
-> the app is, how it's built, how data flows through it, and what's still open.
+> A single, self-contained brain-dump of the **web app**: what it is, how it's
+> built, how data flows, the file-by-file layout, how to set it up and run it, and
+> what's still open. Written so someone (or an AI) with no prior context can pick it up.
 >
-> **Date:** June 2026 (2026-06-08) · **Audience:** non-specialist + AI assistants.
-> Plain language, explains the _why_, not just the _what_.
->
-> **Companion docs (the other half):** the hardware/data side lives in a separate
-> repo with its own write-ups — `docs/PROJECT-HANDOVER.md` (whole system) and
-> `docs/PulsarLR-Integration-Handoff.md` (the RFID bridge). Coordination between the
-> two sides happens in `AI-CHANNEL.md`. This doc is the web-app counterpart to those.
+> **Updated:** 2026-06-09 (post on-showroom-data consolidation + code-quality pass).
+> **Companion docs:** [`LOCAL-SETUP.md`](./LOCAL-SETUP.md) (step-by-step run + gotchas),
+> [`on-showroom-data-app-backend.sql`](./on-showroom-data-app-backend.sql) (the DB
+> objects this app needs). The hardware/RFID side lives in a separate repo
+> (`on-compare-grid`) with its own handover docs; the two AIs coordinate via `AI-CHANNEL.md`.
 
 ---
 
-## 0. TL;DR (read this first)
+## 0. TL;DR
 
-- **The app** is a fullscreen **portrait kiosk page** (designed 1080×1920) for in-store.
-  It's purely reactive: no touch, no operator. A scanner tells it which shoe is on the
-  **left** and **right** stand; it shows each shoe and a side-by-side compare layout.
-- **The chain it sits in:** `RFID tag → reader → Python bridge → THIS APP → screen`.
-  The bridge POSTs one webhook per event; the app flips the screen in <300ms.
-- **Stack:** TanStack Start (React 19, Vite 7), Tailwind v4 + shadcn/ui, Supabase
-  (Postgres + Auth + Realtime + Storage), TanStack Query/Router, deployed on
-  **Cloudflare Workers** (built/managed via Lovable). Package manager: **bun**.
-- **Data:** the app reads from its **own** Supabase project — a **flat `shoes` table**
-  keyed by EAN — which it **prefetches once** at boot and resolves entirely in memory.
-  It does **not** read TSC's `on-showroom-data` / `compare_wall` view.
-- **What's settled:** the ingest webhook, Realtime broadcast, slot/event persistence,
-  the auth model, and the whole kiosk UI all work and match the bridge's contract.
-- **What's open:** how the `shoes` catalog gets **populated** long-term (a new ON-fed
-  DB + a daily offline-first local copy is the leaning direction, not final), where
-  **lookbook images + split videos** are sourced, and the final **deploy domain +
-  webhook token**.
+- **What:** a fullscreen, portrait **kiosk wall** (designed 1080×1920) for in-store. No
+  touch, no operator. A scanner tells it which shoe is on the **left** and **right** stand;
+  it shows each shoe and a side-by-side compare layout.
+- **Chain it sits in:** `RFID tag → reader → Python bridge → THIS APP → screen`. The bridge
+  POSTs one webhook per scan; the wall flips in <300 ms.
+- **Stack:** TanStack Start (React 19, Vite 7) · Tailwind v4 + shadcn/ui · Supabase
+  (Postgres + Auth + Realtime + Storage) · TanStack Query/Router · Cloudflare Workers
+  (deploy). Package manager **bun**.
+- **Data:** one Supabase project, **`on-showroom-data`** (TSC's, ON-fed). Catalog is read
+  from the **`compare_wall`** view (Sample-EAN keyed); the app's operational tables live in
+  the same project. The catalog is **prefetched once** at boot and every scan resolves in
+  memory.
+- **Run it:** `bun install` → `bun run dev` → http://localhost:8080 → open `/?k=<token>`.
+- **Status:** runs locally end-to-end with images. Production runtime (TSS Play + local
+  MQTT) is the next phase.
 
 ---
 
-## 1. What the visitor sees (the experience)
+## 1. What the visitor sees
 
-A 2×2 grid filling a portrait screen. The screen is split **left / right** (one shoe
-per side) and **top / bottom**:
+A 2×2 grid filling a portrait screen — split **left / right** (one shoe per side) and
+**top / bottom**:
 
-- **Top quadrant (per side):** a looping **demo video** of the shoe, with the shoe's
-  **name** and a row of **technology** tags anchored beneath it.
-- **Bottom quadrant (per side):** a two-stage reveal — first a **colour drape** in the
-  shoe's sales colour drops down, then a **black stat panel** drops over it showing the
-  **Energy/experience** header, three **bar graphs** (Cushioning / Responsiveness /
-  Stability, 1–5), and data rows (**Activity, Best For, Ride Type/Feel, Recommended
-  Distance**).
-- **One shoe only:** the _opposite_ empty half shows that shoe's full-height **"Key
-  Look" lookbook image** (`KeyLookOverlay`), which fades + brightens in.
-- **Idle (nothing scanned):** an On logo sits top-right (`IdleBackground`).
+- **Top quadrant (per side):** a looping **demo video** of the shoe (or, when there's no
+  video, the **static product photo** as a fallback), with the shoe **name** + **technology**
+  tags anchored beneath.
+- **Bottom quadrant (per side):** a two-stage reveal — a **colour drape** in the shoe's sales
+  colour drops down, then a **black stat panel** drops over it showing the **experience**
+  header, three **bar graphs** (Cushioning / Responsiveness / Stability, 1–5), and data rows
+  (Activity, Best For, Ride Type/Feel, Recommended Distance).
+- **One shoe only:** the *opposite* empty half shows that shoe's full-height **"key look"
+  lookbook image**, which fades + brightens in.
+- **Idle:** the On logo, top-right.
 
-**Motion language** (all in `src/routes/index.tsx`): staggered panel drops (colour
-then black on open; reverse on close), opacity/blur fade-ins on the name, a brightness
-ramp on the key look. Crucial trick: when a shoe is removed, the app **keeps rendering
-the last shoe for ~1.2s** while the close animation plays, then clears — so panels
-animate out gracefully instead of snapping to empty.
+**Motion language:** staggered panel drops (colour then black on open; reverse on close),
+opacity/blur fades, a brightness ramp on the key look. Key trick — on removal the app keeps
+rendering the last shoe briefly so panels animate *out* instead of snapping to empty. All
+timings are named in `src/constants/animation.ts`.
 
-**Scaling — the one non-obvious UI rule.** All sizing is computed in **JavaScript**
-against a fixed **1920px design height** and emitted as plain `Npx` strings. We
-deliberately avoid CSS `calc()` / `min()` / length math because the **embedded Chromium
-in Vuplex** (the kiosk runtime) evaluates them inconsistently — previously every
-font-size collapsed to default. Helpers: `u(n)` = spacing px, `ut(n)` = text-tracking
-px (0.7×), `px(n)` = a `fontSize` style. Scaling is **height-only**; width has no effect.
+**Scaling (non-obvious):** all sizing is computed in **JavaScript** against a fixed 1920px
+design height and emitted as plain `Npx` strings. CSS `calc()`/`min()`/length-math are
+avoided because the embedded **Chromium in Vuplex** (the kiosk runtime) evaluates them
+inconsistently. See `src/hooks/useScaledUnits.ts`.
 
 ---
 
-## 2. End-to-end flow (a shoe gets placed)
+## 2. Architecture & end-to-end flow
 
 ```
-1. Bridge POSTs:  POST /api/public/ingest/shoe-event
-                  Authorization: Bearer <NODE_RED_PASSWORD>
-                  { "event_type": "scanned", "side": "left", "ean": "7615537532448" }
-2. handleShoeEventIngest (src/lib/shoe-event-ingest.server.ts):
-   a. verifies the bearer token
-   b. reads the slot's current ean (→ previous_ean)
-   c. BROADCASTS on the "shoe-events" Realtime channel  ← screen flips here, <300ms
-   d. UPDATES shoe_slots for that side
-   e. INSERTS a row into shoe_events (audit)
-3. The wall page (src/routes/index.tsx) is subscribed to "shoe-events":
-   it updates its in-memory `slots`, looks up the EAN in the prefetched
-   catalog Map, and renders the shoe. Removal clears the side.
+RFID reader → Python bridge ─┐                         ┌─ Supabase Realtime ("shoe-events")
+(or the emulator)            │  POST /api/public/       │       broadcast
+                             └─ ingest/shoe-event ──────┤
+                                Bearer NODE_RED_PASSWORD │  then persist shoe_slots + shoe_events
+                                                         ▼
+                                          THE WALL (browser, in Vuplex on the POS)
+                                          • subscribes to "shoe-events"
+                                          • resolves EAN in the in-memory catalog
+                                          • renders the quadrants
 ```
 
-The broadcast happens **before** the DB write on purpose: the screen reacting fast is
-what matters; the `shoe_slots`/`shoe_events` writes are persistence/audit. On a cold
-load the page also does one `shoe_slots` select to catch the current state.
+A scan's life:
+1. Bridge/emulator POSTs `{ event_type, side, ean }` to the ingest endpoint with the bearer token.
+2. `handleShoeEventIngest` (`src/lib/shoe-event-ingest.server.ts`): verifies the token
+   (constant-time), reads the slot's current ean, **broadcasts** on the `shoe-events`
+   Realtime channel, then **persists** (`shoe_slots` update + `shoe_events` insert).
+3. The wall is subscribed to `shoe-events`; it updates its in-memory `slots`, looks the EAN
+   up in the prefetched catalog map, and renders. Removal clears that side.
+
+> **Broadcast before DB write is intentional:** the wall resolves shoes from the in-memory
+> catalog + the broadcast payload, not from the DB row, so reacting fast is what matters; the
+> `shoe_slots`/`shoe_events` writes are persistence/audit. On a cold load the wall reads
+> `shoe_slots` once to catch the current state.
 
 ---
 
-## 3. The stack & where everything lives
+## 3. The database — `on-showroom-data`
 
-| Area                   | File(s)                                                                                                            | Role                                                                                                                                                               |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Wall UI**            | `src/routes/index.tsx`                                                                                             | The entire kiosk page: auth gate, realtime subscription, catalog lookup, all four quadrants + overlays. ~730 lines, the heart of the app.                          |
-| **Ingest endpoint**    | `src/routes/api/public/ingest/shoe-event.ts` (+ `src/routes/api/ingest/shoe-event.ts`)                             | Thin route wrappers → `handleShoeEventIngest`. Two paths share one handler.                                                                                        |
-| **Ingest logic**       | `src/lib/shoe-event-ingest.server.ts`                                                                              | Token check, Realtime broadcast, slot update, event insert.                                                                                                        |
-| **Catalog reads**      | `src/lib/shoes.functions.ts`                                                                                       | `getShoeCatalog` (full prefetch + signed video URLs), `getShoeByEan`, `getSplitVideoUrl`. Server functions, service-role.                                          |
-| **Auth**               | `src/lib/access.functions.ts`                                                                                      | `exchangeAccessToken` (magic `?k=` token) + `signInWithUsername` (fallback). Mints a `viewer@local.app` session.                                                   |
-| **Auth plumbing**      | `src/integrations/supabase/auth-middleware.ts` (server guard), `start.ts` (`attachSupabaseAuth` client middleware) | Server fns require a valid Bearer; the browser auto-attaches the viewer's token to every RPC.                                                                      |
-| **Supabase clients**   | `src/integrations/supabase/client.ts` (browser, anon key), `client.server.ts` (service role, bypasses RLS)         | Two clients: public for the browser/realtime, admin for server fns.                                                                                                |
-| **Colour map**         | `src/lib/sales-colors.ts`                                                                                          | `hexForSalesColor(name)` → the bottom drape colour.                                                                                                                |
-| **SSR error handling** | `src/server.ts`, `src/start.ts`, `src/lib/error-page.ts`, `error-capture.ts`                                       | Wraps catastrophic SSR errors (h3 swallows in-handler throws into a JSON 500) into a branded error page.                                                           |
-| **Root/shell**         | `src/routes/__root.tsx`                                                                                            | HTML shell, QueryClient provider, 404 + error components.                                                                                                          |
-| **Deploy**             | `wrangler.jsonc`, `vite.config.ts`                                                                                 | Cloudflare Worker; entry redirected to `src/server.ts`. Vite config comes from `@lovable.dev/vite-tanstack-config` (don't add plugins manually — it bundles them). |
-| **DB schema**          | `supabase/migrations/*.sql`                                                                                        | The five migrations that build the tables below.                                                                                                                   |
+One Supabase project, **`on-showroom-data`** (ref `dlcogzpcduadrshlxqrr`, Frankfurt). It's
+TSC's enriched, ON-fed store; the wall is one consumer of it.
 
----
+**Catalog (read-only):** the **`compare_wall`** view (~943 rows, keyed by **Sample EAN** — the
+barcode real ON tags carry). It's shaped to match what the app reads (see `SHOE_COLUMNS` in
+`shoes.functions.ts` / `CatalogRow` in `types/wall.ts`): name, colour, the three 1–5 scales,
+experience, ride/activity/distance, technology (comma text), description, usps, the three
+image columns, and `lookbook_url`. All joins / array→text shaping happen **in the view** — the
+app only reads + displays.
 
-## 4. Data model (the app's own Supabase project)
+**Operational objects** (created by [`on-showroom-data-app-backend.sql`](./on-showroom-data-app-backend.sql)):
 
-**Project:** `nngfmzevsttpnxhgffit` (Lovable Cloud Supabase). **RLS is ON.**
+| Object | Role |
+|---|---|
+| `shoe_slots` (2 rows) | live left/right state; in the Realtime publication |
+| `shoe_events` | append-only audit log of every scan |
+| `shoe_split_videos` | shoe `commercial_name` → demo video filename in the bucket |
+| storage bucket `shoe-assets` (private) | split videos; served via short-lived signed URLs |
+| Realtime policy on `realtime.messages` | lets authenticated clients subscribe to `shoe-events` |
+| RLS | authenticated-read on the app tables; storage locked to service-role |
 
-| Table                        | Keyed by                        | Holds / role                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| ---------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `shoes`                      | `ean`                           | **The flat catalog.** ~40 columns: `commercial_name`, `sales_color_name`, `colorway`, the three 1–5 scales, `experience`, `ride_type`, `activity_type`, `activity_best_for`, `recommended_distance`, `technology` (comma text), stack heights, `weight_g`, `description(_short)`, `usps[]`, image columns (`gallery_image_url`, `highlight_image_urls[]`, `thumbnail_url`), **`lookbook_url`**, plus `style_code` / `product_code`. |
-| `shoe_slots`                 | `side` (`left`/`right`, 2 rows) | Current shoe per side (the wall's live state). In the Realtime publication; `REPLICA IDENTITY FULL`.                                                                                                                                                                                                                                                                                                                                |
-| `shoe_events`                | `id`                            | Append-only audit log of every scanned/swapped/removed event.                                                                                                                                                                                                                                                                                                                                                                       |
-| `shoe_split_videos`          | `commercial_name`               | Maps a shoe → its demo video filename in the `shoe-assets` storage bucket (`splits/<filename>`).                                                                                                                                                                                                                                                                                                                                    |
-| `shoe_image_urls`            | `ean`                           | A signed-URL cache table from an earlier design. ⚠️ The current code path coalesces image columns directly and does **not** read this table — likely legacy (confirm before relying on it).                                                                                                                                                                                                                                         |
-| storage bucket `shoe-assets` | —                               | **Private.** All client access is via short-lived **signed URLs** minted server-side (service role). Explicit deny policies for anon/authenticated.                                                                                                                                                                                                                                                                                 |
+**Auth users:** `viewer@local.app` (the read-only wall display) and `node-red@local.app` (the
+scanner role). The app auto-creates them on first login via the service-role key — no manual SQL.
 
-> **The columns the UI actually uses** are listed in `SHOE_COLUMNS` in
-> `shoes.functions.ts` and must stay in sync with the `Shoe` type in `index.tsx`.
-
-### How reads work (fast by design)
-
-- On boot (after auth) the app calls **`getShoeCatalog`** once: it returns every shoe
-  (UI columns only, with a single coalesced `image_url`) **plus** a map of **pre-signed
-  split-video URLs** keyed by `commercial_name` (7-day TTL, all signed up front).
-- TanStack Query caches it (`staleTime: 1h`, `gcTime: Infinity`). Every scan is then
-  resolved **synchronously from an in-memory `Map<ean, Shoe>`** — **zero per-scan server
-  calls**. This is what keeps the wall instant and resilient to flaky in-store internet.
-
-> Note on signing: `getSplitVideoUrl` calls Supabase Storage's REST `…/object/sign/…`
-> endpoint via `fetch` rather than the SDK's `createSignedUrl()`, because the SDK
-> returns a spurious "Object not found" inside the Cloudflare Worker runtime.
+> ⚠️ `on-showroom-data` is ON-mirrored. If it's ever rebuilt from ON's feed, re-run the ops
+> SQL to recreate these objects; the auth users re-create on next login.
 
 ---
 
-## 5. Auth & trust model
-
-There are **two trust zones**, mirroring the spec:
-
-1. **The wall (display).** Signs in as a read-only **`viewer@local.app`** user. Entry:
-   - **Magic token:** open `/?k=<VIEWER_ACCESS_TOKEN>`. `exchangeAccessToken` validates
-     it (constant-time compare) and mints a viewer session; the `k` is then stripped
-     from the URL. This is how the kiosk auto-logs-in unattended.
-   - **Fallback:** a username/password form (`signInWithUsername`); username must be
-     `viewer`/`user`, password = `VIEWER_PASSWORD`.
-2. **The scanner (bridge).** Hits the public ingest endpoint with
-   `Authorization: Bearer <NODE_RED_PASSWORD>`. No Supabase session needed.
-
-**Service users:** `viewer@local.app` and `node-red@local.app` are auto-created if
-missing (`ensureUser`). Important subtlety: we **never** reset their password on login —
-Supabase revokes all refresh tokens on a password change, which would log out every
-other kiosk/tab. So `ensureUser` only _creates_, never _updates_.
-
-**Server-function guard:** every catalog/auth server fn is wrapped by
-`requireSupabaseAuth`, which validates the Bearer token via `getClaims`. The browser
-attaches that token automatically through the `attachSupabaseAuth` **client middleware**
-registered in `start.ts` (without it, RPCs would go out unauthenticated).
-
-**Secrets** (server-only env): `SUPABASE_SERVICE_ROLE_KEY`, `NODE_RED_PASSWORD`,
-`VIEWER_PASSWORD`, `VIEWER_ACCESS_TOKEN`. Client-only: `VITE_SUPABASE_URL`,
-`VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID`. Server also needs
-`SUPABASE_URL` + `SUPABASE_PUBLISHABLE_KEY`.
-
-**RLS:** `shoe_slots`/`shoe_events`/`shoes`/`shoe_split_videos` are authenticated-read;
-Realtime `shoe-events` broadcast subscription is restricted to authenticated users; the
-storage bucket is locked to service-role-only (signed URLs).
-
----
-
-## 6. The contract with the bridge (the seam that's settled)
-
-This is the **only** thing the app needs from the hardware side, and it already matches:
+## 4. File structure
 
 ```
-POST /api/public/ingest/shoe-event
-Authorization: Bearer <NODE_RED_PASSWORD>
-{ "event_type": "scanned|swapped|removed", "side": "left|right", "ean": "<EAN-13>" }
+src/
+  routes/
+    index.tsx                     # the wall: composes the hooks + components (~130 lines)
+    __root.tsx                    # HTML shell, QueryClient provider, 404/error boundaries
+    api/public/ingest/shoe-event.ts  # public ingest route  ┐ both call
+    api/ingest/shoe-event.ts         # (same handler)        ┘ handleShoeEventIngest
+  components/wall/                # the kiosk UI, one component per file
+    TopQuadrant.tsx               #   video / photo + name + tech
+    BottomQuadrant.tsx            #   colour drape + black stat panel (uses BarGraph, DataItem)
+    KeyLookOverlay.tsx            #   single-shoe lookbook image
+    BarGraph.tsx · DataItem.tsx · IdleBackground.tsx · LoginForm.tsx
+  components/ui/                  # shadcn primitives (generated — left as-is)
+  hooks/
+    useScaledUnits.ts             # height-only JS scaling (Vuplex-safe); u()/ut()/px()
+    useWallAuth.ts                # auth gate (?k= magic token + login form) + authState
+    useRealtimeSlots.ts           # initial slot fetch + Realtime subscription → slots
+    use-mobile.tsx                # (shadcn helper)
+  lib/
+    shoes.functions.ts            # getShoeCatalog / getShoeByEan / getSplitVideoUrl (server fns)
+    shoe-event-ingest.server.ts   # the ingest handler (token check, broadcast, persist)
+    access.functions.ts           # exchangeAccessToken + signInWithUsername (server fns)
+    images.ts                     # selectImageUrl (gallery → highlight → thumbnail)
+    secure.ts                     # safeEqual (constant-time compare)
+    sales-colors.ts               # hexForSalesColor (the bottom drape colour)
+    error-capture.ts · error-page.ts · utils.ts
+  integrations/supabase/          # generated — left as-is
+    client.ts (browser) · client.server.ts (service-role) · auth-middleware.ts
+    auth-attacher.ts · types.ts (generated from the on-showroom-data schema)
+  types/wall.ts                   # Side, Slot, Shoe, CatalogRow, BroadcastPayload, AuthState
+  constants/animation.ts          # named motion timings
+  server.ts · start.ts            # SSR entry + error handling, client auth middleware
+  router.tsx · styles.css · assets/ (fonts, on-logo)
+supabase/
+  migrations/                     # original app-project migrations (historical)
+  config.toml
+docs/                             # this file, LOCAL-SETUP.md, the ops SQL
 ```
 
-- `ean` omitted on `removed`.
-- The emulator/bridge already post here and get HTTP 200.
-- The app keys the catalog by **whatever EAN arrives** — so the open question is purely
-  _which_ EAN population lives in `shoes` (see §7), not the wire format.
+Generated/vendored files (`components/ui/**`, `routeTree.gen.ts`, the supabase `client*`/
+`auth-*`/`types.ts`) are excluded from lint + prettier and are not hand-maintained.
 
 ---
 
-## 7. What's open (and why it matters)
+## 5. How the key pieces work
 
-1. **Catalog population — the big one (in flux).** The app reads its **own** flat
-   `shoes` table, not TSC's `compare_wall`. _How that table gets filled_ is being
-   decided internally. Leaning direction (not final): a **new Supabase DB** whose schema
-   matches what **ON** will feed, and the installation **downloads a daily local copy**
-   (offline-first, re-fetched on restart). Until settled, the live constraint stands:
-   **real shoe tags only resolve if the `shoes` table is keyed by the Sample EAN** the
-   bridge decodes (today the hardware side hard-codes 4 test tags onto catalog EANs as a
-   stopgap — see the bridge handover §3.1).
-2. **Lookbook images + split videos — no confirmed source.** The plumbing exists
-   (`lookbook_url`, `shoe_split_videos`, the `shoe-assets` bucket), but where the actual
-   assets come from (the ON-fed DB? hosted separately?) is undecided.
-3. **Final deploy domain + webhook token.** Currently `on-compare-wall.lovable.app` with
-   a dev `NODE_RED_PASSWORD`. Both change at go-live; the bridge's `config.toml` must be
-   pointed at the final values.
-4. **Likely-legacy bits to confirm/remove:** the `shoe_image_urls` table (current code
-   doesn't read it) and `supabase/config.toml`'s `[functions.shoe-events]` edge-function
-   stub (ingest is now a TanStack server route, not an edge function).
+- **Catalog prefetch (`getShoeCatalog`, server fn, service-role):** on boot (once authed) the
+  wall downloads the whole `compare_wall` view + a map of pre-signed split-video URLs, cached
+  by TanStack Query (`staleTime: 1h`). Every scan then resolves from an in-memory
+  `Map<ean, Shoe>` — **no per-scan server call**. `selectImageUrl` coalesces the three image
+  columns into one `image_url`.
+- **Realtime (`useRealtimeSlots`):** subscribes to the `shoe-events` broadcast and applies each
+  event to `slots` in memory; also reads `shoe_slots` once on mount for cold-start state.
+- **Auth (`useWallAuth`):** an existing session → authed; else a `?k=<VIEWER_ACCESS_TOKEN>`
+  magic token is exchanged for a viewer session (token then stripped from the URL); else the
+  username/password `LoginForm`. Server fns are guarded by `requireSupabaseAuth`; the browser
+  auto-attaches the viewer's bearer to every RPC (`start.ts`).
+- **Ingest auth:** the scanner posts `Authorization: Bearer <NODE_RED_PASSWORD>`; checked with
+  `safeEqual` (constant-time).
+- **Two Supabase clients:** `client.ts` (browser, anon/publishable key — used for auth +
+  realtime) and `client.server.ts` (service-role, bypasses RLS — used by server fns).
 
 ---
 
-## 8. Running it locally
+## 6. Setup & running locally
 
-```bash
-bun install
-bun dev          # vite dev server
-bun run build    # production build (Cloudflare Worker)
-bun run lint
-```
+Full step-by-step + the non-obvious gotchas live in [`LOCAL-SETUP.md`](./LOCAL-SETUP.md). In short:
 
-Needs the env vars from §5 (a local `.env` holds the Supabase URL + publishable key;
-the service-role key and the three passwords/tokens are set in the deploy environment).
-Open `/?k=<VIEWER_ACCESS_TOKEN>` to auth as the wall, or use the username/password form.
-Drive it without hardware via the emulator (in the other repo) posting to the ingest
-endpoint — the app can't tell a real tag from an emulator click.
+1. **Prereqs:** `bun` (the repo is bun-based).
+2. **Env:** copy `.env.example` → `.env` and fill it. **Local dev reads `.env`, not
+   `.dev.vars`** (the Cloudflare deploy path uses `.dev.vars`; `bun run dev` does not). `.env`
+   is gitignored, so local secrets are safe there. Values come from the Supabase dashboard →
+   `on-showroom-data` → Settings → API; you invent `NODE_RED_PASSWORD` / `VIEWER_PASSWORD` /
+   `VIEWER_ACCESS_TOKEN`.
+3. **Install + run:** `bun install` → `bun run dev` → http://localhost:8080.
+4. **Log in:** open `http://localhost:8080/?k=<VIEWER_ACCESS_TOKEN>` (or the form: `viewer` +
+   `VIEWER_PASSWORD`).
+5. **Test without hardware:** `curl` a scan at the ingest endpoint, or drive it from the
+   emulator (in the `on-compare-grid` repo) pointed at the local wall. See LOCAL-SETUP §Testing.
 
----
+Key scripts (`package.json`): `bun run dev` · `bun run build` · `bun run lint` ·
+`bun run format`. Typecheck: `bunx tsc --noEmit`.
 
-## 9. Mini-glossary
-
-- **Slot:** one of the two stands, `left` / `right`. `shoe_slots` is the live state.
-- **Broadcast vs DB write:** the app reacts to a Realtime _broadcast_ (fast), and
-  _separately_ persists to `shoe_slots`/`shoe_events` (audit). Broadcast comes first.
-- **Catalog prefetch:** the one-time download of the whole `shoes` table at boot, after
-  which every scan is resolved in memory with no further server calls.
-- **Key Look:** the full-height lookbook image shown on the empty half when only one
-  shoe is present (`lookbook_url`).
-- **Vuplex:** the embedded-Chromium kiosk runtime — the reason all scaling is done in JS
-  with plain `px` values instead of CSS math.
-- **viewer / node-red users:** the two service accounts — the display logs in as
-  `viewer@local.app`; the scanner authenticates as `node-red@local.app` via bearer.
+> **Gotcha — the `viewer` password is locked after first login.** The app creates the user
+> once and never updates its password (a Supabase password change revokes all sessions). To
+> change it, delete `viewer@local.app` in Supabase → Auth; it re-creates from `.env`.
 
 ---
 
-_Counterpart to the hardware/data handovers in the other repo. The events seam (§6) is
-the most settled; the catalog-population model (§7.1) is the main thing still being
-decided. If you're an AI reading this: start at §4 (data) and §7 (open questions)._
+## 7. Deployment & production runtime
+
+- **Today:** built for **Cloudflare Workers** (`wrangler.jsonc` → `src/server.ts`, via
+  `@cloudflare/vite-plugin`, managed through Lovable). Production env vars (incl. secrets) are
+  injected by the platform, not committed.
+- **Target (in progress):** the wall runs as a **URL asset inside a TSS Play scene**, via
+  **Vuplex** (embedded Chromium) on a Windows POS — which is why the JS-only scaling exists.
+  Direction: offline-first (cache the asset + a local catalog copy; daily online refresh), and
+  live scans delivered over **local MQTT** (bridge → local RabbitMQ → Web-MQTT/WebSocket →
+  the app) instead of cloud Realtime. **Same `{event_type, side, ean}` payload** — the event
+  handler gains a second input source. RFID stays a direct bridge→app path; TSS Play is the
+  display surface only.
+
+---
+
+## 8. Conventions & quality bar
+
+- **TypeScript strict**, no `any` in hand-written code; explicit types on server-fn results +
+  component props (shared types in `types/wall.ts`).
+- **`bun run lint` is green and `tsc --noEmit` is clean.** Generated/vendored files are
+  excluded from lint (`eslint.config.js`) + prettier (`.prettierignore`).
+- **Comments explain *why*** (intent, timing, Vuplex/Realtime gotchas), JSDoc on exports.
+- **Commits:** small and focused; per-chunk; messages describe intent. (This repo's commits
+  intentionally omit a co-author trailer.)
+- **Secrets** never in git: `.env` / `.dev.vars` are gitignored; `.env.example` documents the
+  keys with no values.
+
+---
+
+## 9. Open items / known gaps
+
+- **Lookbook images:** `compare_wall.lookbook_url` is sparse — a backfill SQL exists on the
+  data side (`lookbook_url_backfill.sql`, ~210/943 rows) for Ties to run.
+- **Split demo videos:** blocked on ON (made in-house, not delivered). `shoe_split_videos` is
+  empty; the static-photo fallback covers shoes until videos land.
+- **Image coverage:** ~40% of shoes have a gallery photo; the rest render bare (data, not a bug).
+- **`weight_g`:** no source yet (null).
+- **Production runtime:** TSS Play asset + local MQTT + offline catalog cache (next phase).
+- **Final deploy domain + webhook token** change at go-live (off `on-compare-wall.lovable.app`).
+- **QoL (later):** a boot-time download-progress indicator while the catalog + assets cache.
+
+---
+
+## 10. Reference
+
+- **Supabase:** `on-showroom-data`, ref `dlcogzpcduadrshlxqrr` (Frankfurt). Catalog view
+  `compare_wall`. Ops objects via [`on-showroom-data-app-backend.sql`](./on-showroom-data-app-backend.sql).
+- **Repo:** `github.com/tieswwww/On-Compare-Wall-Webapp` (branch `main`).
+- **Ingest contract:** `POST /api/public/ingest/shoe-event`, `Authorization: Bearer
+  <NODE_RED_PASSWORD>`, body `{ "event_type": "scanned|swapped|removed", "side": "left|right",
+  "ean": "<EAN-13>" }` (`ean` omitted on `removed`).
+- **Related:** [`LOCAL-SETUP.md`](./LOCAL-SETUP.md) (run + gotchas), `AI-CHANNEL.md` (cross-team
+  coordination, in the `on-compare-grid` repo).
