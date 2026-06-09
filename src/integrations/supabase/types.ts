@@ -14,6 +14,77 @@ export type Database = {
   }
   public: {
     Tables: {
+      epc_map: {
+        Row: {
+          ean: string
+          internal_code: string | null
+          item_name: string | null
+          product_id: string | null
+          season: string | null
+        }
+        Insert: {
+          ean: string
+          internal_code?: string | null
+          item_name?: string | null
+          product_id?: string | null
+          season?: string | null
+        }
+        Update: {
+          ean?: string
+          internal_code?: string | null
+          item_name?: string | null
+          product_id?: string | null
+          season?: string | null
+        }
+        Relationships: []
+      }
+      products: {
+        Row: {
+          color_name: string | null
+          drop_out_date: string | null
+          gallery_image: string | null
+          highlight_images: string[] | null
+          launch_date: string | null
+          lookbook_url: string | null
+          product_id: string
+          style_code: string | null
+          thumbnail_image: string | null
+          vertical: string | null
+        }
+        Insert: {
+          color_name?: string | null
+          drop_out_date?: string | null
+          gallery_image?: string | null
+          highlight_images?: string[] | null
+          launch_date?: string | null
+          lookbook_url?: string | null
+          product_id: string
+          style_code?: string | null
+          thumbnail_image?: string | null
+          vertical?: string | null
+        }
+        Update: {
+          color_name?: string | null
+          drop_out_date?: string | null
+          gallery_image?: string | null
+          highlight_images?: string[] | null
+          launch_date?: string | null
+          lookbook_url?: string | null
+          product_id?: string
+          style_code?: string | null
+          thumbnail_image?: string | null
+          vertical?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_style_code_fkey"
+            columns: ["style_code"]
+            isOneToOne: false
+            referencedRelation: "styles"
+            referencedColumns: ["style_code"]
+          },
+        ]
+      }
       shoe_events: {
         Row: {
           created_at: string
@@ -43,35 +114,6 @@ export type Database = {
           side?: string | null
         }
         Relationships: []
-      }
-      shoe_image_urls: {
-        Row: {
-          created_at: string
-          ean: string
-          expires_at: string
-          url: string
-        }
-        Insert: {
-          created_at?: string
-          ean: string
-          expires_at: string
-          url: string
-        }
-        Update: {
-          created_at?: string
-          ean?: string
-          expires_at?: string
-          url?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "shoe_image_urls_ean_fkey"
-            columns: ["ean"]
-            isOneToOne: true
-            referencedRelation: "shoes"
-            referencedColumns: ["ean"]
-          },
-        ]
       }
       shoe_slots: {
         Row: {
@@ -112,141 +154,147 @@ export type Database = {
         }
         Relationships: []
       }
-      shoes: {
+      styles: {
         Row: {
-          activity_best_for: string | null
-          activity_type: string | null
-          bottom_foam: string | null
+          activity_best_for: string[] | null
+          activity_type: string[] | null
+          bottom_midsole_foam: string | null
           cloudtec_config: string | null
-          colorway: string | null
-          commercial_name: string | null
+          cloudtec_system: string | null
           conditions: string | null
-          created_at: string
           cushioning_scale: number | null
           description: string | null
           description_short: string | null
-          drop_out_date: string | null
-          ean: string
           experience: string | null
           fit: string | null
+          forefoot_stack_mm: number | null
+          heel_offset_mm: number | null
+          heel_stack_mm: number | null
+          lacing: string | null
+          name: string | null
+          recommended_distance: string[] | null
+          responsiveness_scale: number | null
+          ride_type: string | null
+          size_recommendation: string | null
+          stability_scale: number | null
+          style_code: string
+          technology: string[] | null
+          top_midsole_foam: string | null
+          usps: string | null
+        }
+        Insert: {
+          activity_best_for?: string[] | null
+          activity_type?: string[] | null
+          bottom_midsole_foam?: string | null
+          cloudtec_config?: string | null
+          cloudtec_system?: string | null
+          conditions?: string | null
+          cushioning_scale?: number | null
+          description?: string | null
+          description_short?: string | null
+          experience?: string | null
+          fit?: string | null
+          forefoot_stack_mm?: number | null
+          heel_offset_mm?: number | null
+          heel_stack_mm?: number | null
+          lacing?: string | null
+          name?: string | null
+          recommended_distance?: string[] | null
+          responsiveness_scale?: number | null
+          ride_type?: string | null
+          size_recommendation?: string | null
+          stability_scale?: number | null
+          style_code: string
+          technology?: string[] | null
+          top_midsole_foam?: string | null
+          usps?: string | null
+        }
+        Update: {
+          activity_best_for?: string[] | null
+          activity_type?: string[] | null
+          bottom_midsole_foam?: string | null
+          cloudtec_config?: string | null
+          cloudtec_system?: string | null
+          conditions?: string | null
+          cushioning_scale?: number | null
+          description?: string | null
+          description_short?: string | null
+          experience?: string | null
+          fit?: string | null
+          forefoot_stack_mm?: number | null
+          heel_offset_mm?: number | null
+          heel_stack_mm?: number | null
+          lacing?: string | null
+          name?: string | null
+          recommended_distance?: string[] | null
+          responsiveness_scale?: number | null
+          ride_type?: string | null
+          size_recommendation?: string | null
+          stability_scale?: number | null
+          style_code?: string
+          technology?: string[] | null
+          top_midsole_foam?: string | null
+          usps?: string | null
+        }
+        Relationships: []
+      }
+      variants: {
+        Row: {
+          ean: string
+          product_id: string | null
+          size_code: string | null
+        }
+        Insert: {
+          ean: string
+          product_id?: string | null
+          size_code?: string | null
+        }
+        Update: {
+          ean?: string
+          product_id?: string | null
+          size_code?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "variants_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["product_id"]
+          },
+        ]
+      }
+    }
+    Views: {
+      compare_wall: {
+        Row: {
+          activity_best_for: string | null
+          activity_type: string | null
+          colorway: string | null
+          commercial_name: string | null
+          cushioning_scale: number | null
+          description: string | null
+          description_short: string | null
+          ean: string | null
+          experience: string | null
           forefoot_stack_mm: number | null
           gallery_image_url: string | null
           heel_drop_mm: number | null
           heel_stack_mm: number | null
           highlight_image_urls: string[] | null
-          image_path: string | null
-          lacing: string | null
-          launch_date: string | null
           lookbook_url: string | null
-          model: string | null
-          name: string | null
-          product_code: string | null
           recommended_distance: string | null
           responsiveness_scale: number | null
           ride_type: string | null
           sales_color_name: string | null
-          size_recommendation: string | null
           stability_scale: number | null
-          style_code: string | null
           technology: string | null
           thumbnail_url: string | null
-          top_foam: string | null
-          updated_at: string
           usps: string[] | null
-          vertical_name: string | null
           weight_g: number | null
-        }
-        Insert: {
-          activity_best_for?: string | null
-          activity_type?: string | null
-          bottom_foam?: string | null
-          cloudtec_config?: string | null
-          colorway?: string | null
-          commercial_name?: string | null
-          conditions?: string | null
-          created_at?: string
-          cushioning_scale?: number | null
-          description?: string | null
-          description_short?: string | null
-          drop_out_date?: string | null
-          ean: string
-          experience?: string | null
-          fit?: string | null
-          forefoot_stack_mm?: number | null
-          gallery_image_url?: string | null
-          heel_drop_mm?: number | null
-          heel_stack_mm?: number | null
-          highlight_image_urls?: string[] | null
-          image_path?: string | null
-          lacing?: string | null
-          launch_date?: string | null
-          lookbook_url?: string | null
-          model?: string | null
-          name?: string | null
-          product_code?: string | null
-          recommended_distance?: string | null
-          responsiveness_scale?: number | null
-          ride_type?: string | null
-          sales_color_name?: string | null
-          size_recommendation?: string | null
-          stability_scale?: number | null
-          style_code?: string | null
-          technology?: string | null
-          thumbnail_url?: string | null
-          top_foam?: string | null
-          updated_at?: string
-          usps?: string[] | null
-          vertical_name?: string | null
-          weight_g?: number | null
-        }
-        Update: {
-          activity_best_for?: string | null
-          activity_type?: string | null
-          bottom_foam?: string | null
-          cloudtec_config?: string | null
-          colorway?: string | null
-          commercial_name?: string | null
-          conditions?: string | null
-          created_at?: string
-          cushioning_scale?: number | null
-          description?: string | null
-          description_short?: string | null
-          drop_out_date?: string | null
-          ean?: string
-          experience?: string | null
-          fit?: string | null
-          forefoot_stack_mm?: number | null
-          gallery_image_url?: string | null
-          heel_drop_mm?: number | null
-          heel_stack_mm?: number | null
-          highlight_image_urls?: string[] | null
-          image_path?: string | null
-          lacing?: string | null
-          launch_date?: string | null
-          lookbook_url?: string | null
-          model?: string | null
-          name?: string | null
-          product_code?: string | null
-          recommended_distance?: string | null
-          responsiveness_scale?: number | null
-          ride_type?: string | null
-          sales_color_name?: string | null
-          size_recommendation?: string | null
-          stability_scale?: number | null
-          style_code?: string | null
-          technology?: string | null
-          thumbnail_url?: string | null
-          top_foam?: string | null
-          updated_at?: string
-          usps?: string[] | null
-          vertical_name?: string | null
-          weight_g?: number | null
         }
         Relationships: []
       }
-    }
-    Views: {
-      [_ in never]: never
     }
     Functions: {
       [_ in never]: never
