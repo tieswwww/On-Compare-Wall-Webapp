@@ -22,48 +22,11 @@ import { useQuery } from "@tanstack/react-query";
 import { exchangeAccessToken, signInWithUsername } from "@/lib/access.functions";
 import { getShoeCatalog } from "@/lib/shoes.functions";
 import { hexForSalesColor } from "@/lib/sales-colors";
+import type { Side, Slot, Shoe, BroadcastPayload, AuthState } from "@/types/wall";
 
 export const Route = createFileRoute("/")({
   component: Index,
 });
-
-type Side = "left" | "right";
-type Slot = { side: Side; ean: string | null; updated_at: string };
-
-type BroadcastPayload = {
-  event_type: "scanned" | "swapped" | "removed";
-  side: Side | null;
-  ean: string | null;
-  previous_ean: string | null;
-  ts: string;
-};
-
-type AuthState = "checking" | "authed" | "denied";
-
-type Shoe = {
-  ean: string;
-  commercial_name: string | null;
-  sales_color_name: string | null;
-  colorway: string | null;
-  weight_g: number | null;
-  heel_stack_mm: number | null;
-  forefoot_stack_mm: number | null;
-  heel_drop_mm: number | null;
-  cushioning_scale: number | null;
-  responsiveness_scale: number | null;
-  stability_scale: number | null;
-  experience: string | null;
-  ride_type: string | null;
-  activity_type: string | null;
-  activity_best_for: string | null;
-  recommended_distance: string | null;
-  technology: string | null;
-  description_short: string | null;
-  description: string | null;
-  usps: string[] | null;
-  image_url: string | null;
-  lookbook_url: string | null;
-};
 
 /* ---------- scaling helpers ----------
    All scaling math runs in JavaScript and we emit plain `Npx` strings to
