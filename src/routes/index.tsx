@@ -2,6 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getShoeCatalog } from "@/lib/shoes.functions";
+import { getCatalogFromView } from "@/lib/catalog.client";
+import { KIOSK_MODE } from "@/config/runtime";
 import type { Side, Shoe } from "@/types/wall";
 import { KEYLOOK_DELAY_AFTER_REMOVAL_MS, KEYLOOK_DELAY_FRESH_MS } from "@/constants/animation";
 import { useWallAuth } from "@/hooks/useWallAuth";
@@ -30,9 +32,11 @@ function Index() {
   const slots = useRealtimeSlots(authState);
 
   // Prefetch the whole catalog once after login; resolve every scan in memory.
+  // Kiosk reads the anon `compare_wall` view directly (no session); the
+  // browser/admin build uses the service-role server fn. Same return shape.
   const catalog = useQuery({
-    queryKey: ["shoe-catalog"],
-    queryFn: () => getShoeCatalog(),
+    queryKey: ["shoe-catalog", KIOSK_MODE ? "kiosk" : "server"],
+    queryFn: () => (KIOSK_MODE ? getCatalogFromView() : getShoeCatalog()),
     enabled: authState === "authed",
     staleTime: 1000 * 60 * 60, // 1 hour
     gcTime: Infinity,

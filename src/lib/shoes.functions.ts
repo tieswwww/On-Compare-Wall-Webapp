@@ -4,41 +4,12 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { CatalogRow } from "@/types/wall";
 import { selectImageUrl } from "@/lib/images";
+import { CATALOG_RELATION, SHOE_COLUMNS } from "@/lib/catalog-columns";
 
-// Columns selected from the catalog view. Keep in sync with `CatalogRow` /
-// `Shoe` in src/types/wall.ts.
-const SHOE_COLUMNS = [
-  "ean",
-  "commercial_name",
-  "sales_color_name",
-  "colorway",
-  "weight_g",
-  "heel_stack_mm",
-  "forefoot_stack_mm",
-  "heel_drop_mm",
-  "cushioning_scale",
-  "responsiveness_scale",
-  "stability_scale",
-  "experience",
-  "ride_type",
-  "activity_type",
-  "activity_best_for",
-  "recommended_distance",
-  "technology",
-  "description_short",
-  "description",
-  "usps",
-  "gallery_image_url",
-  "highlight_image_urls",
-  "thumbnail_url",
-  "lookbook_url",
-].join(",");
-
-// The product catalog now lives in `on-showroom-data` as the `compare_wall`
-// view (keyed by Sample EAN), built to match SHOE_COLUMNS 1:1. The app's
-// operational tables (shoe_slots/shoe_events/shoe_split_videos) live in the
-// same project. See docs/WEBAPP-HANDOVER.md.
-const CATALOG_RELATION = "compare_wall";
+// CATALOG_RELATION / SHOE_COLUMNS are defined in src/lib/catalog-columns.ts and
+// shared with the kiosk anon-read path. The app's operational tables
+// (shoe_slots/shoe_events/shoe_split_videos) live in the same on-showroom-data
+// project. See docs/WEBAPP-HANDOVER.md.
 
 export const getShoeByEan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

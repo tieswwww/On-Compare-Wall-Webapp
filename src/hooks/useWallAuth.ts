@@ -1,23 +1,29 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { exchangeAccessToken, signInWithUsername } from "@/lib/access.functions";
 import type { AuthState } from "@/types/wall";
+import { KIOSK_MODE } from "@/config/runtime";
 
 /**
  * Drives the wall's auth gate and login fallback.
  *
- * On mount: an existing Supabase session → `authed`; else a magic `?k=` token is
- * exchanged for a viewer session (and stripped from the URL, on success or
- * failure); otherwise → `denied` (show the login form). Also exposes the
- * username/password fallback used by that form.
+ * Kiosk mode (the installation): skips the gate entirely — the catalog is read
+ * with the anon key, so no session is needed (see src/config/runtime.ts).
+ *
+ * Browser / admin (default): on mount, an existing Supabase session → `authed`;
+ * else a magic `?k=` token is exchanged for a viewer session (and stripped from
+ * the URL, on success or failure); otherwise → `denied` (show the login form).
+ * Also exposes the username/password fallback used by that form.
  */
 export function useWallAuth() {
-  const [authState, setAuthState] = useState<AuthState>("checking");
+  // In kiosk mode there is no interactive auth — start authed and never gate.
+  const [authState, setAuthState] = useState<AuthState>(KIOSK_MODE ? "authed" : "checking");
   const [username, setUsername] = useState("viewer");
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   useEffect(() => {
+    if (KIOSK_MODE) return; // no session/token handling in kiosk mode
     if (typeof window === "undefined") return;
     let cancelled = false;
 
