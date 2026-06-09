@@ -4,9 +4,17 @@ import type { AuthState, Side, Slot } from "@/types/wall";
 import { applyShoeEvent, emptySlots, type SlotTransport } from "@/lib/transport/types";
 import { createRealtimeTransport } from "@/lib/transport/realtime";
 import { createMqttTransport } from "@/lib/transport/mqtt";
+import { createWsTransport } from "@/lib/transport/ws";
 
 function createTransport(): SlotTransport {
-  return EVENT_TRANSPORT === "mqtt" ? createMqttTransport() : createRealtimeTransport();
+  switch (EVENT_TRANSPORT) {
+    case "mqtt":
+      return createMqttTransport();
+    case "ws":
+      return createWsTransport();
+    default:
+      return createRealtimeTransport();
+  }
 }
 
 /**

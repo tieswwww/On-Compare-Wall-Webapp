@@ -1,35 +1,5 @@
 import { MQTT_PASSWORD, MQTT_TOPIC, MQTT_URL, MQTT_USERNAME } from "@/config/runtime";
-import type { BroadcastPayload, Side } from "@/types/wall";
-import type { ShoeEvent, SlotTransport, TransportCallbacks } from "./types";
-
-/**
- * Parse + validate a raw MQTT message body into a ShoeEvent, or null if it
- * isn't a well-formed scan event. The bridge sends the same JSON as the webhook
- * (`{event_type, side, ean}`, `ean` omitted on `removed`); `previous_ean`/`ts`
- * may be absent, so we fill sensible defaults.
- */
-export function parseMqttEvent(raw: string): ShoeEvent | null {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return null;
-  }
-  if (typeof parsed !== "object" || parsed === null) return null;
-
-  const p = parsed as Record<string, unknown>;
-  const eventType = p.event_type;
-  if (eventType !== "scanned" && eventType !== "swapped" && eventType !== "removed") return null;
-  if (p.side !== "left" && p.side !== "right") return null;
-
-  return {
-    event_type: eventType,
-    side: p.side as Side,
-    ean: typeof p.ean === "string" ? p.ean : null,
-    previous_ean: typeof p.previous_ean === "string" ? p.previous_ean : null,
-    ts: typeof p.ts === "string" ? p.ts : new Date().toISOString(),
-  } satisfies BroadcastPayload;
-}
+import { parseShoeEvent, type SlotTransport, type TransportCallbacks } from "./types";
 
 /**
  * MQTT (Web-MQTT over WebSocket) transport — the installation path.
@@ -61,7 +31,7 @@ export function createMqttTransport(): SlotTransport {
         });
 
         client.on("message", (_topic, message) => {
-          const event = parseMqttEvent(message.toString());
+          const event = parseShoeEvent(message.toString());
           if (event) onEvent(event);
         });
 

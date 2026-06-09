@@ -25,9 +25,22 @@ export const KIOSK_MODE = import.meta.env.VITE_KIOSK_MODE === "true";
  * Set `VITE_EVENT_TRANSPORT=mqtt` for the kiosk. Same `{event_type,side,ean}`
  * payload either way, so the slot logic is shared.
  */
-export type EventTransport = "realtime" | "mqtt";
+export type EventTransport = "realtime" | "mqtt" | "ws";
 export const EVENT_TRANSPORT: EventTransport =
-  import.meta.env.VITE_EVENT_TRANSPORT === "mqtt" ? "mqtt" : "realtime";
+  import.meta.env.VITE_EVENT_TRANSPORT === "mqtt"
+    ? "mqtt"
+    : import.meta.env.VITE_EVENT_TRANSPORT === "ws"
+      ? "ws"
+      : "realtime";
+
+/**
+ * Direct WebSocket transport (EVENT_TRANSPORT === "ws") — the installation path.
+ * The RFID bridge serves a plain WebSocket on the POS; the wall connects to it
+ * directly (localhost, offline, no broker). On connect the bridge sends a
+ * snapshot of current slot state, then each scan as it happens. Same
+ * `{event_type, side, ean}` event payload. See src/lib/transport/ws.ts.
+ */
+export const WS_URL = import.meta.env.VITE_WS_URL ?? "ws://localhost:8082/wall";
 
 /**
  * MQTT (Web-MQTT over WebSocket) connection settings, used only when

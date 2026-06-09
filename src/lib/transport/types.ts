@@ -26,6 +26,38 @@ export type SlotTransport = {
   start: (callbacks: TransportCallbacks) => () => void;
 };
 
+/**
+ * Parse + validate a raw JSON string into a ShoeEvent, or null if it isn't a
+ * well-formed scan event. Shared by the MQTT and WebSocket adapters — the bridge
+ * sends the same `{event_type, side, ean}` shape over both (`ean` omitted on
+ * `removed`); `previous_ean`/`ts` may be absent, so we fill defaults.
+ */
+export function parseShoeEvent(raw: string): ShoeEvent | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  return coerceShoeEvent(parsed);
+}
+
+/** Coerce an already-parsed value into a ShoeEvent, or null if malformed. */
+export function coerceShoeEvent(parsed: unknown): ShoeEvent | null {
+  if (typeof parsed !== "object" || parsed === null) return null;
+  const p = parsed as Record<string, unknown>;
+  const eventType = p.event_type;
+  if (eventType !== "scanned" && eventType !== "swapped" && eventType !== "removed") return null;
+  if (p.side !== "left" && p.side !== "right") return null;
+  return {
+    event_type: eventType,
+    side: p.side,
+    ean: typeof p.ean === "string" ? p.ean : null,
+    previous_ean: typeof p.previous_ean === "string" ? p.previous_ean : null,
+    ts: typeof p.ts === "string" ? p.ts : new Date().toISOString(),
+  };
+}
+
 /** Fresh, empty slot state — nothing on either stand. */
 export function emptySlots(): Record<Side, Slot> {
   return {
