@@ -36,11 +36,11 @@ function Index() {
   const catalog = useQuery({
     queryKey: ["shoe-catalog", KIOSK_MODE ? "kiosk" : "server"],
     // Kiosk's anon read uses the browser Supabase client, so it's imported
-    // dynamically (client-only) — index.tsx is server-rendered and can't
-    // statically import a *.client module.
+    // dynamically — the queryFn only runs client-side, so the module is never
+    // loaded during SSR (see catalog-anon.ts).
     queryFn: () =>
       KIOSK_MODE
-        ? import("@/lib/catalog.client").then((m) => m.getCatalogFromView())
+        ? import("@/lib/catalog-anon").then((m) => m.getCatalogFromView())
         : getShoeCatalog(),
     enabled: authState === "authed",
     staleTime: 1000 * 60 * 60, // 1 hour

@@ -1,3 +1,9 @@
+// CLIENT-ONLY. This module imports the browser Supabase client (which touches
+// localStorage at load), so it must NEVER be imported by server-reachable code.
+// Load it ONLY via a dynamic import inside a client-side code path (see the
+// kiosk catalog queryFn in src/routes/index.tsx). It's intentionally not named
+// `*.client.*` so a deliberate dynamic import isn't blocked by the build's
+// import-protection guard — keep the dynamic-only rule by hand.
 import { supabase } from "@/integrations/supabase/client";
 import { CATALOG_RELATION, SHOE_COLUMNS } from "@/lib/catalog-columns";
 import { selectImageUrl } from "@/lib/images";

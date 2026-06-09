@@ -115,7 +115,7 @@ from reading that table.)
 3. Service worker (app shell + durable image cache) for offline reload. _Gated on A (TSS-team)._
 4. ~~Kiosk mode (skip login, anon catalog) behind a flag.~~ **DONE** (commit `4f45def`,
    `VITE_KIOSK_MODE`). Short-circuits the auth gate, reads the anon-readable `compare_wall` view
-   directly (`src/lib/catalog.client.ts`); verified the anon read returns all SHOE_COLUMNS. Off by
+   directly (`src/lib/catalog-anon.ts`); verified the anon read returns all SHOE_COLUMNS. Off by
    default → browser/admin flow unchanged.
 5. End-to-end test: bridge → local broker → wall, pull the network. First as a **local MQTT
    dry-run on the Mac** (local RabbitMQ, `ws://localhost:15675/ws`, guest/guest), then on the POS.

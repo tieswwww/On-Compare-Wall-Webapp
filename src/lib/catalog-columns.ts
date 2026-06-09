@@ -1,6 +1,6 @@
 // Shared catalog-source definition, used by BOTH the server fn
 // (src/lib/shoes.functions.ts, service-role read) and the kiosk client path
-// (src/lib/catalog.client.ts, anon read of the public `compare_wall` view).
+// (src/lib/catalog-anon.ts, anon read of the public `compare_wall` view).
 //
 // Keep this list in sync with `CatalogRow` / `Shoe` in src/types/wall.ts and
 // with the `compare_wall` view definition in on-showroom-data.
