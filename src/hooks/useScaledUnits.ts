@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useState, type CSSProperties } from "react";
 
 /**
  * Height-only UI scaling for the wall.
@@ -9,8 +9,9 @@ import { useEffect, useState, type CSSProperties } from "react";
  * inconsistently, which previously caused every font-size to collapse to the
  * browser default and all margins/positions to drop.
  *
- * A single module-level `scale` is shared by every component (recomputed on
- * window resize); `useScaledUnits()` re-renders its caller when it changes.
+ * A single module-level `scale` is shared by every component; it's recomputed on
+ * window resize AND on mount (see below). `useScaledUnits()` re-renders its
+ * caller when it changes.
  */
 
 // px value of 1 design-unit at the current viewport (1 = design height 1920).
@@ -24,15 +25,22 @@ function computeScale(): number {
   return window.innerHeight / 1920;
 }
 
+// Recompute the shared scale and notify subscribers if it changed.
+function recomputeScale(): void {
+  const next = computeScale();
+  if (next === scale) return;
+  scale = next;
+  scaleListeners.forEach((l) => l());
+}
+
 if (typeof window !== "undefined") {
   scale = computeScale();
-  window.addEventListener("resize", () => {
-    const next = computeScale();
-    if (next === scale) return;
-    scale = next;
-    scaleListeners.forEach((l) => l());
-  });
+  window.addEventListener("resize", recomputeScale);
 }
+
+// Apply the scale before paint on the client; fall back to useEffect on the
+// server (no-op there, and avoids React's SSR useLayoutEffect warning).
+const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 /**
  * Scaling helpers bound to the current viewport:
@@ -44,10 +52,15 @@ if (typeof window !== "undefined") {
  */
 export function useScaledUnits() {
   const [, force] = useState(0);
-  useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     const rerender = () => force((x) => x + 1);
     scaleListeners.add(rerender);
-    // Sync once on mount in case scale changed between SSR and hydration.
+    // Recompute against the ACTUAL viewport at mount, before paint. innerHeight
+    // may not have been settled when the module first loaded (fresh tab, or the
+    // Vuplex surface sizing late) — previously only a window resize recomputed
+    // it, so the first paint could use a stale scale and render huge. This makes
+    // the first frame correct without a resize.
+    recomputeScale();
     rerender();
     return () => {
       scaleListeners.delete(rerender);
