@@ -7,7 +7,7 @@ import { KIOSK_MODE } from "@/config/runtime";
 import type { Side, Shoe } from "@/types/wall";
 import { KEYLOOK_DELAY_AFTER_REMOVAL_MS, KEYLOOK_DELAY_FRESH_MS } from "@/constants/animation";
 import { useWallAuth } from "@/hooks/useWallAuth";
-import { useRealtimeSlots } from "@/hooks/useRealtimeSlots";
+import { useShoeSlots } from "@/hooks/useShoeSlots";
 import { IdleBackground } from "@/components/wall/IdleBackground";
 import { TopQuadrant } from "@/components/wall/TopQuadrant";
 import { BottomQuadrant } from "@/components/wall/BottomQuadrant";
@@ -22,14 +22,14 @@ export const Route = createFileRoute("/")({
 
 /**
  * The compare wall. Composes the auth gate (useWallAuth), realtime slot state
- * (useRealtimeSlots), and a one-time catalog prefetch into the 2×2 quadrant
+ * (useShoeSlots), and a one-time catalog prefetch into the 2×2 quadrant
  * layout, plus the idle logo and single-shoe key-look overlay. Every scan
  * resolves from the in-memory catalog map — no server round-trip per scan.
  */
 function Index() {
   const auth = useWallAuth();
   const { authState } = auth;
-  const slots = useRealtimeSlots(authState);
+  const slots = useShoeSlots(authState);
 
   // Prefetch the whole catalog once after login; resolve every scan in memory.
   // Kiosk reads the anon `compare_wall` view directly (no session); the
