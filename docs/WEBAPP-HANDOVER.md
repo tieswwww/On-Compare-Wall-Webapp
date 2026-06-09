@@ -134,12 +134,14 @@ src/
     TopQuadrant.tsx               #   video / photo + name + tech
     BottomQuadrant.tsx            #   colour drape + black stat panel (uses BarGraph, DataItem)
     KeyLookOverlay.tsx            #   single-shoe lookbook image
+    PreloadProgress.tsx           #   small idle-screen "caching N%" bar
     BarGraph.tsx · DataItem.tsx · IdleBackground.tsx · LoginForm.tsx
   components/ui/                  # shadcn primitives (generated — left as-is)
   hooks/
     useScaledUnits.ts             # height-only JS scaling (Vuplex-safe); u()/ut()/px()
     useWallAuth.ts                # auth gate (?k= magic token + login form) + authState
     useRealtimeSlots.ts           # initial slot fetch + Realtime subscription → slots
+    useAssetPreloader.ts          # boot-time image preload + progress (warms the cache)
     use-mobile.tsx                # (shadcn helper)
   lib/
     shoes.functions.ts            # getShoeCatalog / getShoeByEan / getSplitVideoUrl (server fns)
@@ -174,6 +176,10 @@ Generated/vendored files (`components/ui/**`, `routeTree.gen.ts`, the supabase `
   by TanStack Query (`staleTime: 1h`). Every scan then resolves from an in-memory
   `Map<ean, Shoe>` — **no per-scan server call**. `selectImageUrl` coalesces the three image
   columns into one `image_url`.
+- **Asset preload (`useAssetPreloader` + `PreloadProgress`):** once the catalog loads, every
+  product photo is preloaded (throttled, once per session) to warm the browser cache, so a
+  scanned shoe's image is already cached and fades in instantly. A small "caching N%" bar shows
+  on the idle screen and fades out when done. In-session only — see the open items for offline.
 - **Realtime (`useRealtimeSlots`):** subscribes to the `shoe-events` broadcast and applies each
   event to `slots` in memory; also reads `shoe_slots` once on mount for cold-start state.
 - **Auth (`useWallAuth`):** an existing session → authed; else a `?k=<VIEWER_ACCESS_TOKEN>`
@@ -251,7 +257,9 @@ Key scripts (`package.json`): `bun run dev` · `bun run build` · `bun run lint`
 - **`weight_g`:** no source yet (null).
 - **Production runtime:** TSS Play asset + local MQTT + offline catalog cache (next phase).
 - **Final deploy domain + webhook token** change at go-live (off `on-compare-wall.lovable.app`).
-- **QoL (later):** a boot-time download-progress indicator while the catalog + assets cache.
+- **Asset cache:** boot-time image preload + idle progress indicator are **done** (Phase 1,
+  in-session HTTP cache — `useAssetPreloader` + `PreloadProgress`). Surviving a restart / full
+  offline (service worker / Cache API) is **Phase 2**, tied to the TSS offline-first runtime.
 
 ---
 
