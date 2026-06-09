@@ -101,10 +101,25 @@ from reading that table.)
 ## Proposed build sequence (once decisions are locked)
 
 1. Transport abstraction + MQTT.js adapter (config-flagged; dev keeps Realtime).
+   _Blocked on E (opus_ties's broker specifics)._
 2. Durable catalog cache (fetch → cache → read-offline) via the anon key.
 3. Service worker (app shell + durable image cache) for offline reload.
-4. Kiosk mode (skip login, anon catalog) behind a flag.
+   _Gated on A (TSS-team answer)._
+4. ~~Kiosk mode (skip login, anon catalog) behind a flag.~~ **DONE** (commit `4f45def`,
+   `VITE_KIOSK_MODE`). The flag short-circuits the auth gate and reads the anon-readable
+   `compare_wall` view directly (`src/lib/catalog.client.ts`); verified the anon read returns
+   all SHOE_COLUMNS. Off by default → browser/admin flow unchanged. Events still use Realtime
+   until the MQTT adapter (1) lands.
 5. End-to-end test on the Windows laptop: bridge → local broker → wall, pull the network.
+
+### Note on E — partial broker info already in `.env.example`
+
+`.env.example` already carries TSS-gateway settings: host
+`tsc-nl-ties-control.storytellingsuite.com`, **`TSS_GATEWAY_PORT=5672` (AMQP)**, user `location`,
+topic `shoe-events`. That's the **AMQP** port — the browser MQTT.js adapter needs a **Web-MQTT
+WebSocket** endpoint (RabbitMQ's Web-MQTT plugin, typically `ws://host:15675/ws`). So E still
+needs confirmation: is Web-MQTT enabled, what's the **ws** host:port/path, and is it reachable
+**locally on the POS** (the design assumes a *local* broker for offline; this host looks remote).
 
 ## Principle
 
