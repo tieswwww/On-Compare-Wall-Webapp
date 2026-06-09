@@ -77,17 +77,19 @@ from reading that table.)
 
 ## Decisions needed before building
 
-**For Ties (architecture):**
+**Ties's architecture calls (resolved 2026-06-09):**
 
-- **A. Asset serving + offline reload.** Is the wall loaded from the deployed URL and expected
-  to run offline via a **service worker** (recommended), or does TSS Play snapshot/serve it
-  locally? (Determines whether we add the SW — and whether Vuplex supports SWs in a secure context.)
-- **B. Kiosk auth.** OK to run the POS with **no interactive login**, reading the anon-readable
-  catalog directly? (Recommended — removes the cloud-auth dependency offline.)
-- **C. Offline persistence.** Is cloud persistence of `shoe_slots`/`shoe_events` needed in the
-  installation, or is in-memory state (+ optional local bridge logging) fine?
-- **D. Refresh cadence.** Confirm the **daily restart** is the catalog-refresh moment, and
-  whether app-version updates piggyback on it.
+- **A. Asset serving + offline reload — LEANING: TSS handles app-shell offline serving**
+  (Ties, not 100% certain → **verify with the TSS team**). Plan: rely on TSS to reload the
+  asset offline; we still add **durable image caching** regardless (TSS won't have on-demand
+  images cached, and ON's gallery `max-age` ≈ 15 min). Add an app-shell service worker only if
+  TSS turns out not to snapshot the asset.
+- **B. Kiosk auth — DECIDED: kiosk mode, no login.** The POS reads anon-readable `compare_wall`
+  with the publishable key; the viewer login stays only for browser/admin use.
+- **C. Offline persistence — DECIDED: in-memory only.** No cloud `shoe_slots`/`shoe_events`
+  persistence in the installation; the bridge can log locally if an audit is ever wanted.
+- **D. Refresh cadence — assumed:** the catalog refresh happens on the **daily (online)
+  restart**, app updates piggyback. Flag if different.
 
 **For opus_ties (bridge / broker):**
 
