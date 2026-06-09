@@ -1,0 +1,110 @@
+# Production Runtime Design — TSS Play + local MQTT + offline
+
+> **Status: DRAFT for review** (opus_tsc, 2026-06-09). Roadmap step 6. This is the
+> webapp-side plan + the decisions still needed from Ties (architecture) and opus_ties
+> (bridge/broker) before we build. Nothing here is built yet.
+
+## Goal
+
+The wall ships as a **web asset inside TSS Play** (Vuplex/embedded Chromium) on a Windows
+POS, **offline-first**: internet is needed only ~once/day to refresh the catalog (and pick up
+app updates); **live scans arrive over local MQTT**; between refreshes the wall keeps working
+with **no internet**.
+
+## Current architecture — what won't survive offline
+
+The app today is cloud-dependent at runtime:
+
+| Concern | Today                                                 | Problem offline               |
+| ------- | ----------------------------------------------------- | ----------------------------- |
+| Catalog | `getShoeCatalog` server fn (service-role) → Supabase  | needs the cloud server + DB   |
+| Events  | Supabase **Realtime** broadcast (cloud)               | needs the cloud               |
+| Auth    | viewer Supabase session gates the server fns          | token refresh needs the cloud |
+| Ingest  | cloud server route persists slots/events + broadcasts | not in the local path         |
+
+So as-is the wall needs internet at runtime. Offline-first means **decoupling the runtime
+read/event paths from the cloud**.
+
+## Target architecture
+
+```
+INSTALLATION (offline between daily refreshes)
+  RFID bridge → local RabbitMQ (Web-MQTT plugin) → ws://localhost → MQTT.js in the wall
+                                                                    (running in Vuplex on the POS)
+  Daily, online:  wall fetches compare_wall (anon key) → durable local cache (catalog + images)
+  Runtime, offline:  events via MQTT → in-memory slots → render from the local cache
+```
+
+**Helpful fact (verified):** `compare_wall` is **anon-readable** (public RLS read policy), so
+the kiosk can fetch + cache the catalog with the **publishable/anon key — no viewer session
+required**. (`shoe_slots` is _not_ anon-readable, but the kiosk gets slot state from MQTT, not
+from reading that table.)
+
+## Webapp-side work items
+
+1. **Event transport abstraction + MQTT input** _(the core change)_
+   - Refactor `useRealtimeSlots` → a transport-agnostic `useShoeSlots` that takes an adapter.
+   - Add an **MQTT.js adapter** (WebSocket) that connects to the local broker, subscribes to
+     the scan topic, parses the **same `{event_type, side, ean}` payload**, and feeds the same
+     slot-update logic. Realtime stays as a second adapter.
+   - **Config-flagged transport:** `realtime` (dev/cloud) · `mqtt` (installation) · or both.
+     One build, behaviour switched by env/config — no divergent builds.
+
+2. **Durable catalog cache (read offline)**
+   - On a daily online boot: fetch the catalog (directly from anon-readable `compare_wall`, or
+     keep the server fn for online and cache its result) and store it in a **durable client
+     cache** (Cache API or IndexedDB).
+   - Offline / on fetch failure: **read from the cache**. The wall always has a catalog.
+
+3. **Service worker — offline app shell + image cache** _(Phase 2 of the preloader)_
+   - Cache the app shell so Vuplex can **reload offline** after the daily restart (rather than
+     relying on TSS to snapshot the asset).
+   - Cache the catalog images **durably**, overriding ON's short `max-age` (gallery images are
+     only `max-age=900` ≈ 15 min). Builds directly on `useAssetPreloader`.
+   - ⚠️ Requires a **secure context** (https/localhost) + Vuplex/Chromium SW support — confirm.
+
+4. **Kiosk mode (no interactive auth)**
+   - Since `compare_wall` is anon-readable and the POS is a trusted local environment, the
+     kiosk shouldn't need the viewer login. Add a **kiosk mode** (config-flagged) that reads
+     the catalog with the anon key and skips the login gate. The viewer login stays for the
+     browser-preview/admin case.
+
+5. **Ingest / persistence offline**
+   - In the installation, events go MQTT → browser → in-memory slots; the cloud ingest route
+     (slots/events persistence + Realtime) isn't in that path. Proposal: the offline kiosk
+     **doesn't persist** slots/events to the cloud (display doesn't need it); if audit is
+     wanted, the bridge logs locally.
+
+## Decisions needed before building
+
+**For Ties (architecture):**
+
+- **A. Asset serving + offline reload.** Is the wall loaded from the deployed URL and expected
+  to run offline via a **service worker** (recommended), or does TSS Play snapshot/serve it
+  locally? (Determines whether we add the SW — and whether Vuplex supports SWs in a secure context.)
+- **B. Kiosk auth.** OK to run the POS with **no interactive login**, reading the anon-readable
+  catalog directly? (Recommended — removes the cloud-auth dependency offline.)
+- **C. Offline persistence.** Is cloud persistence of `shoe_slots`/`shoe_events` needed in the
+  installation, or is in-memory state (+ optional local bridge logging) fine?
+- **D. Refresh cadence.** Confirm the **daily restart** is the catalog-refresh moment, and
+  whether app-version updates piggyback on it.
+
+**For opus_ties (bridge / broker):**
+
+- **E. MQTT specifics.** Confirm **RabbitMQ Web-MQTT** plugin; the exact **`ws://host:port`**
+  the browser connects to; the **topic name(s)**; any **username/password** for the WS
+  connection; and that the payload is the same `{event_type, side, ean}` JSON. Does the bridge
+  publish to MQTT **in addition to / instead of** the webhook?
+
+## Proposed build sequence (once decisions are locked)
+
+1. Transport abstraction + MQTT.js adapter (config-flagged; dev keeps Realtime).
+2. Durable catalog cache (fetch → cache → read-offline) via the anon key.
+3. Service worker (app shell + durable image cache) for offline reload.
+4. Kiosk mode (skip login, anon catalog) behind a flag.
+5. End-to-end test on the Windows laptop: bridge → local broker → wall, pull the network.
+
+## Principle
+
+Everything behind a **config flag** so the dev setup (cloud Realtime + auth) and the
+installation (MQTT + offline + kiosk) coexist in **one codebase, one build**.
