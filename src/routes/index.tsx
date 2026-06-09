@@ -23,6 +23,19 @@ import { exchangeAccessToken, signInWithUsername } from "@/lib/access.functions"
 import { getShoeCatalog } from "@/lib/shoes.functions";
 import { hexForSalesColor } from "@/lib/sales-colors";
 import type { Side, Slot, Shoe, BroadcastPayload, AuthState } from "@/types/wall";
+import {
+  VIDEO_REVEAL_DELAY_MS,
+  VIDEO_CLEAR_DELAY_MS,
+  NAME_FADE_MS,
+  SHOE_HOLD_MS,
+  BOTTOM_STAGE_MS,
+  BOTTOM_STAGGER_MS,
+  COLOR_DRAPE_FADE_MS,
+  KEYLOOK_DELAY_AFTER_REMOVAL_MS,
+  KEYLOOK_DELAY_FRESH_MS,
+  KEYLOOK_CLEAR_MS,
+  KEYLOOK_TRANSITION_MS,
+} from "@/constants/animation";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -147,14 +160,14 @@ function TopQuadrant({ shoe, videoUrl }: { shoe: Shoe | null; videoUrl: string |
       setVideoLoaded(false);
       setVideoDelayElapsed(false);
       // Load the video immediately, but only reveal it after the delay.
-      const t = setTimeout(() => setVideoDelayElapsed(true), 250);
+      const t = setTimeout(() => setVideoDelayElapsed(true), VIDEO_REVEAL_DELAY_MS);
       return () => clearTimeout(t);
     }
     setVideoDelayElapsed(false);
     const t = setTimeout(() => {
       setDisplayedVideoUrl(null);
       setVideoLoaded(false);
-    }, 600);
+    }, VIDEO_CLEAR_DELAY_MS);
     return () => clearTimeout(t);
   }, [videoUrl]);
 
@@ -164,7 +177,7 @@ function TopQuadrant({ shoe, videoUrl }: { shoe: Shoe | null; videoUrl: string |
       return;
     }
     // Clear text only after the close animation has played out.
-    const t = setTimeout(() => setDisplayedShoe(null), 1200);
+    const t = setTimeout(() => setDisplayedShoe(null), SHOE_HOLD_MS);
     return () => clearTimeout(t);
   }, [shoe]);
 
@@ -214,7 +227,7 @@ function TopQuadrant({ shoe, videoUrl }: { shoe: Shoe | null; videoUrl: string |
           bottom: u(184),
           opacity: shoe ? 1 : 0,
           filter: shoe ? "blur(0px)" : `blur(${u(72)})`,
-          transition: "opacity 400ms ease-in-out, filter 400ms ease-in-out",
+          transition: `opacity ${NAME_FADE_MS}ms ease-in-out, filter ${NAME_FADE_MS}ms ease-in-out`,
         }}
       >
         <div className="font-sans font-bold text-black" style={{ ...px(72), lineHeight: 1 }}>
@@ -254,14 +267,12 @@ function BottomQuadrant({ shoe, open }: { shoe: Shoe | null; open: boolean }) {
       setDisplayedShoe(shoe);
       return;
     }
-    const t = setTimeout(() => setDisplayedShoe(null), 1200);
+    const t = setTimeout(() => setDisplayedShoe(null), SHOE_HOLD_MS);
     return () => clearTimeout(t);
   }, [shoe]);
   const s = displayedShoe;
-  const STAGE_MS = 700;
-  const STAGGER_MS = 150; // short offset between the two stages
-  const colorDelay = open ? 0 : STAGGER_MS; // close: black leaves first, color follows shortly
-  const blackDelay = open ? STAGGER_MS : 0; // open:  color drops first, black follows shortly
+  const colorDelay = open ? 0 : BOTTOM_STAGGER_MS; // close: black leaves first, color follows shortly
+  const blackDelay = open ? BOTTOM_STAGGER_MS : 0; // open:  color drops first, black follows shortly
 
   return (
     <div className="relative h-full w-full overflow-hidden">
@@ -273,7 +284,7 @@ function BottomQuadrant({ shoe, open }: { shoe: Shoe | null; open: boolean }) {
           opacity: 0.8,
 
           clipPath: open ? "inset(0 0 0 0)" : "inset(0 0 100% 0)",
-          transition: `clip-path ${STAGE_MS}ms cubic-bezier(0.7, 0, 0.2, 1) ${colorDelay}ms, background-color 300ms ease`,
+          transition: `clip-path ${BOTTOM_STAGE_MS}ms cubic-bezier(0.7, 0, 0.2, 1) ${colorDelay}ms, background-color ${COLOR_DRAPE_FADE_MS}ms ease`,
         }}
       />
       {/* Stage 2: black panel with content */}
@@ -281,7 +292,7 @@ function BottomQuadrant({ shoe, open }: { shoe: Shoe | null; open: boolean }) {
         className="absolute inset-0 bg-black text-[#EBEEF0]"
         style={{
           clipPath: open ? "inset(0 0 0 0)" : "inset(0 0 100% 0)",
-          transition: `clip-path ${STAGE_MS}ms cubic-bezier(0.7, 0, 0.2, 1) ${blackDelay}ms`,
+          transition: `clip-path ${BOTTOM_STAGE_MS}ms cubic-bezier(0.7, 0, 0.2, 1) ${blackDelay}ms`,
         }}
       >
         {/* Top-aligned, horizontally centered column. Items inside stay left-aligned. */}
@@ -582,7 +593,10 @@ function Index() {
         : null;
 
   // Delay only when the overlay appears because a shoe was REMOVED.
-  const keyLookDelayMs = keyLookLeftSide && prevBothRef.current ? 1400 : 300;
+  const keyLookDelayMs =
+    keyLookLeftSide && prevBothRef.current
+      ? KEYLOOK_DELAY_AFTER_REMOVAL_MS
+      : KEYLOOK_DELAY_FRESH_MS;
 
   return (
     <main
@@ -643,7 +657,7 @@ function KeyLookOverlay({
       setDisplayedUrl(null);
       setLoaded(false);
       setLit(false);
-    }, 1000);
+    }, KEYLOOK_CLEAR_MS);
     return () => clearTimeout(t);
   }, [url, side]);
 
@@ -670,7 +684,7 @@ function KeyLookOverlay({
         opacity: visible ? 1 : 0,
         transform: visible ? "scale(1)" : "scale(0.98)",
         transformOrigin: "center center",
-        transition: `opacity 1000ms ease-in-out, transform 1000ms ${visible ? "ease-out" : "ease-in"}`,
+        transition: `opacity ${KEYLOOK_TRANSITION_MS}ms ease-in-out, transform ${KEYLOOK_TRANSITION_MS}ms ${visible ? "ease-out" : "ease-in"}`,
       }}
     >
       <img
@@ -693,7 +707,7 @@ function KeyLookOverlay({
         className="h-full w-full object-cover"
         style={{
           filter: lit ? "brightness(1)" : "brightness(0)",
-          transition: "filter 1000ms ease-in-out",
+          transition: `filter ${KEYLOOK_TRANSITION_MS}ms ease-in-out`,
         }}
       />
     </div>
