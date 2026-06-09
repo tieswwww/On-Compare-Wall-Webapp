@@ -20,6 +20,10 @@ export function TopQuadrant({ shoe, videoUrl }: { shoe: Shoe | null; videoUrl: s
   const [videoDelayElapsed, setVideoDelayElapsed] = useState(false);
   // Keep last shoe so name/tech stay rendered while fading out on removal.
   const [displayedShoe, setDisplayedShoe] = useState<Shoe | null>(shoe);
+  // Which photo URL has finished loading — gates the static-photo fade so a new
+  // shoe starts hidden and fades in once its image is ready, instead of popping
+  // in when the bytes arrive. Keyed by URL so it resets per shoe.
+  const [loadedImageUrl, setLoadedImageUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (videoUrl) {
@@ -79,8 +83,11 @@ export function TopQuadrant({ shoe, videoUrl }: { shoe: Shoe | null; videoUrl: s
           key={displayedShoe.image_url}
           src={displayedShoe.image_url}
           alt=""
+          onLoad={() => setLoadedImageUrl(displayedShoe?.image_url ?? null)}
           className={`pointer-events-none absolute inset-0 h-full w-full object-contain transition-opacity duration-500 ${
-            shoe?.image_url ? "opacity-100" : "opacity-0"
+            shoe?.image_url && loadedImageUrl === displayedShoe.image_url
+              ? "opacity-100"
+              : "opacity-0"
           }`}
           style={{ paddingTop: u(125), paddingBottom: u(240) }}
         />
