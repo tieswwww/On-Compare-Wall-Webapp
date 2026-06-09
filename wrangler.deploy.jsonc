@@ -1,0 +1,15 @@
+{
+  // DEPLOY config — used by `bun run deploy` (wrangler deploy -c wrangler.deploy.jsonc).
+  //
+  // Why a second file: `wrangler.jsonc` keeps `main: src/server.ts` because the
+  // @cloudflare/vite-plugin builds the Worker FROM that source during `vite build`.
+  // `wrangler deploy` itself can't run the Vite build, so for deploy we point it at
+  // the already-built output (dist/server/server.js) + the client assets (dist/client).
+  // See docs/DEPLOY.md.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "on-compare-wall",
+  "compatibility_date": "2025-09-24",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "dist/server/server.js",
+  "assets": { "directory": "dist/client" },
+}

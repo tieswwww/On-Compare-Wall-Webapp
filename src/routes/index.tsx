@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getShoeCatalog } from "@/lib/shoes.functions";
-import { getCatalogFromView } from "@/lib/catalog.client";
 import { KIOSK_MODE } from "@/config/runtime";
 import type { Side, Shoe } from "@/types/wall";
 import { KEYLOOK_DELAY_AFTER_REMOVAL_MS, KEYLOOK_DELAY_FRESH_MS } from "@/constants/animation";
@@ -36,7 +35,13 @@ function Index() {
   // browser/admin build uses the service-role server fn. Same return shape.
   const catalog = useQuery({
     queryKey: ["shoe-catalog", KIOSK_MODE ? "kiosk" : "server"],
-    queryFn: () => (KIOSK_MODE ? getCatalogFromView() : getShoeCatalog()),
+    // Kiosk's anon read uses the browser Supabase client, so it's imported
+    // dynamically (client-only) — index.tsx is server-rendered and can't
+    // statically import a *.client module.
+    queryFn: () =>
+      KIOSK_MODE
+        ? import("@/lib/catalog.client").then((m) => m.getCatalogFromView())
+        : getShoeCatalog(),
     enabled: authState === "authed",
     staleTime: 1000 * 60 * 60, // 1 hour
     gcTime: Infinity,
