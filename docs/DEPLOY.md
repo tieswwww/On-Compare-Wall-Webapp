@@ -86,7 +86,7 @@ loads. Re-run this any time to ship an update.
    exists).
 2. Test the ingest endpoint (replace the bearer with your `NODE_RED_PASSWORD`):
    ```sh
-   curl -X POST https://<your-url>/api/public/ingest/shoe-event \
+   curl -X POST https://on-compare-wall.ties-webers.workers.dev/api/public/ingest/shoe-event \
      -H "Authorization: Bearer <NODE_RED_PASSWORD>" \
      -H "Content-Type: application/json" \
      -d '{"event_type":"scanned","side":"left","ean":"7615537532448"}'
