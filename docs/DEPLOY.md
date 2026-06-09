@@ -103,9 +103,10 @@ URL-overridable so one deploy serves both. See docs/PRODUCTION-RUNTIME-DESIGN.md
 
 ## Notes / gotchas
 
-- **Asset size:** Cloudflare caps a single static asset at **25 MiB**.
-  `public/idle-bg.mp4` was re-encoded (4K HEVC 29 MiB → H.264 10 MiB) to fit and
-  to play reliably in Chromium/Vuplex. Keep new assets under the limit.
+- **Asset size:** Cloudflare caps a single static asset at **25 MiB**. Keep new
+  assets (videos especially) under the limit. (An orphan `public/idle-bg.mp4` —
+  a 28.5 MiB 4K clip not referenced anywhere in the app — was removed for this
+  reason; the idle screen is the ON logo, no video.)
 - `wrangler.deploy.jsonc` contains **no secrets** — safe to commit.
 - First deploy on a fresh account also provisions a free `*.workers.dev`
   subdomain; you can attach a custom domain later in the Cloudflare dashboard.
