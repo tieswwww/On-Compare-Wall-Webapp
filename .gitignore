@@ -36,3 +36,6 @@ dist-ssr
 .env
 .env.*
 !.env.example
+
+# Supabase CLI local state (created by `supabase gen types`, etc.)
+supabase/.temp/
