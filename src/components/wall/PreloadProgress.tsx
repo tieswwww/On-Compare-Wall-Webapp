@@ -24,7 +24,7 @@ export function PreloadProgress({ total, progress, done }: PreloadState) {
         className="font-mono uppercase text-black/55"
         style={{ ...px(20), letterSpacing: ut(1.5), marginBottom: ut(12) }}
       >
-        Caching images · {pct}%
+        Caching media · {pct}%
       </div>
       <div className="w-full overflow-hidden rounded-full bg-black/10" style={{ height: u(4) }}>
         <div

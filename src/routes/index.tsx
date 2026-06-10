@@ -58,7 +58,7 @@ function Index() {
 
   // Preload all catalog photos at boot so a scanned shoe's image is already
   // cached and fades in instantly (progress shown on the idle screen).
-  const preload = useAssetPreloader(catalog.data?.shoes);
+  const preload = useAssetPreloader(catalog.data?.shoes, catalog.data?.splitVideos);
 
   const leftEan = slots.left.ean;
   const rightEan = slots.right.ean;
