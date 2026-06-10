@@ -563,3 +563,44 @@ and transition lengths referenced above — so the wall's motion language is
 tuned in one place. Each constant's comment says what it gates.
 
 Next: keeping all that media instant — the boot-time preloader (Section 8).
+
+---
+
+## Section 8 — Media: the boot-time asset preloader
+
+**Goal:** a scan should *never* show download jank — when a shoe lands on the
+stand, its photo, split video, and lookbook should already be in the browser
+cache. So at boot, while the wall sits idle, it quietly downloads the entire
+catalog's media. Files: `useAssetPreloader.ts` · `PreloadProgress.tsx` (+ the
+stable URLs from `split-videos.ts`, Section 5, that make caching possible).
+
+### `src/hooks/useAssetPreloader.ts`
+Called from `index.tsx` with the catalog data; runs **once per session**
+(guarded by a ref) as soon as the catalog arrives.
+- **Asset list:** the deduped set of every shoe's `image_url` plus every split
+  video URL.
+- **Throttled pump:** a tiny hand-rolled scheduler keeps at most
+  `MAX_CONCURRENT = 6` requests in flight — fast, but doesn't hammer On's CDN
+  or starve the WebSocket at boot. Each settle (success *or* failure) starts
+  the next asset, so progress always reaches 100%.
+- **Per-kind loading:** images via `new Image()` (browser caches the decode
+  path it'll reuse in `<img>`); videos via `fetch().blob()` — `fetch` alone
+  resolves on *headers*, `.blob()` forces the **full file** down so the whole
+  video is cached, not just its first bytes.
+- Returns `{ total, loaded, progress, done }` for the indicator.
+- **Scope (important):** this warms the in-session **HTTP cache** only. It
+  makes scans instant and survives brief network drops, but it is *not*
+  restart-proof offline storage — that would be a service worker, which was
+  tried and reverted (`4eb24c3`); the install is assumed online at boot.
+
+### `src/components/wall/PreloadProgress.tsx`
+The on-brand boot indicator on the idle screen: "Caching media · N%" over a
+thin progress bar, bottom-centre. Fades out when done, renders nothing when
+there's nothing to cache, and `index.tsx` hides it the moment any shoe is
+scanned (it's idle-screen-only chrome).
+
+Why this matters doubly for the kiosk: the split-video URLs are unsigned,
+stable public URLs (Section 5), so the cache entries stay valid — a signed URL
+with an expiry would bust the cache every refresh.
+
+Next: the two builds, env vars, and how it all ships (Section 9).
