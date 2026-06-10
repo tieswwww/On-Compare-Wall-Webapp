@@ -182,3 +182,58 @@ morning, not now" mismatch.
 **End of the bridge.** From here a clean `{event_type, side, ean}` is on the
 `/wall` WebSocket (and/or webhook). Section 3 picks it up on the webapp side —
 starting with how the wall boots.
+
+---
+
+## Section 3 — Wall boot (webapp startup on Cloudflare)
+
+**Goal:** when TSS/a browser loads the kiosk URL, produce the HTML and hand off
+to React. Files: `server.ts` (Worker entry) · `error-capture.ts` + `error-page.ts`
+· `start.ts` (middleware) · `router.tsx` · `routeTree.gen.ts` · `routes/__root.tsx`.
+
+### `src/server.ts` — the Cloudflare Worker entry
+What actually runs on Cloudflare (the deploy configs' `main` points at the built
+version of this). `export default { fetch }`: lazy-imports TanStack Start's
+`server-entry`, calls its `fetch`, returns the response. The notable part is
+error handling: `h3` swallows SSR throws into a generic JSON `500`
+(`{"unhandled":true,"message":"HTTPError"}`) that `try/catch` never sees, so
+`normalizeCatastrophicSsrResponse()` sniffs for that exact body and returns a
+**branded error page** instead (logging the real error recovered out-of-band).
+
+### `src/lib/error-capture.ts` + `error-page.ts`
+`error-capture` hooks global `error`/`unhandledrejection` and stashes the last
+real Error (5 s TTL) so `server.ts` can recover a stack after h3 flattens it.
+`error-page.ts` is a self-contained styled HTML page (no deps, renders even when
+the app is broken).
+
+### `src/start.ts` — TanStack Start config (middleware)
+`createStart()` registers: **`errorMiddleware`** (server: branded 500 on throws)
+and **`attachSupabaseAuth`** (client/function middleware: attaches
+`Authorization: Bearer <session token>` before every **server function** call —
+this is how authed server fns receive the viewer session; the kiosk calls no
+server fns, so it's a no-op there).
+
+### `src/router.tsx` — router + React Query
+`getRouter()` builds the TanStack Router from `routeTree.gen.ts` and puts a fresh
+**`QueryClient` in router context** — making React Query available to every route
+(the catalog query lives on it).
+
+### `src/routeTree.gen.ts`
+Auto-generated route tree (don't edit): `__root` + one route `/`.
+
+### `src/routes/__root.tsx`
+- **`head()`** — page meta/title (the "ON Compare Wall" branding) + stylesheet.
+- **`RootShell`** — SSR document scaffold: `<html><head><HeadContent/>…<body>{children}<Scripts/>`.
+  `Scripts` injects the client bundle that hydrates the page.
+- **`RootComponent`** — wraps `<Outlet/>` (the matched route) in `QueryClientProvider`.
+- **`NotFoundComponent` / `ErrorComponent`** — 404 + error boundary.
+
+### Boot sequence
+```
+GET kiosk URL → Cloudflare server.ts.fetch → TanStack server-entry → router matches "/"
+  → SSR renders RootShell + index route → streams HTML
+  → browser paints, loads /assets/*.js (via <Scripts/>) → React hydrates
+    → QueryClientProvider + router live → index route mounts (Sections 4+)
+```
+
+Next: the index route's first act — the **auth gate** (Section 4).
