@@ -221,8 +221,9 @@ Key scripts (`package.json`): `bun run dev` · `bun run build` · `bun run lint`
 ## 7. Deployment & production runtime
 
 - **Today:** built for **Cloudflare Workers** (`wrangler.jsonc` → `src/server.ts`, via
-  `@cloudflare/vite-plugin`, managed through Lovable). Production env vars (incl. secrets) are
-  injected by the platform, not committed.
+  `@cloudflare/vite-plugin`) and **self-hosted on our own Cloudflare** (`bun run deploy` /
+  `deploy:kiosk` — see docs/DEPLOY.md). Production secrets are set with `wrangler secret put`,
+  not committed.
 - **Target (in progress):** the wall runs as a **URL asset inside a TSS Play scene**, via
   **Vuplex** (embedded Chromium) on a Windows POS — which is why the JS-only scaling exists.
   Direction: offline-first (cache the asset + a local catalog copy; daily online refresh), and
@@ -256,7 +257,8 @@ Key scripts (`package.json`): `bun run dev` · `bun run build` · `bun run lint`
 - **Image coverage:** ~40% of shoes have a gallery photo; the rest render bare (data, not a bug).
 - **`weight_g`:** no source yet (null).
 - **Production runtime:** TSS Play asset + local MQTT + offline catalog cache (next phase).
-- **Final deploy domain + webhook token** change at go-live (off `on-compare-wall.lovable.app`).
+- **Final deploy domain + webhook token** may change at go-live (currently
+  `on-compare-wall.ties-webers.workers.dev` for admin, `on-compare-wall-kiosk.…` for the kiosk).
 - **Asset cache:** boot-time image preload + idle progress indicator are **done** (Phase 1,
   in-session HTTP cache — `useAssetPreloader` + `PreloadProgress`). Surviving a restart / full
   offline (service worker / Cache API) is **Phase 2**, tied to the TSS offline-first runtime.

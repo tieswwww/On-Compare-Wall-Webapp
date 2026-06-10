@@ -129,7 +129,7 @@ PYTHONPATH=.. ./.venv/bin/python main.py
 - Pick shoes whose EANs are in `compare_wall` (the emulator's `eans.txt` is a mix — the
   Cloudboom Max entries resolve). The emulator boots in **emulate** (button) mode — no hardware needed.
 - **Drive multiple walls at once:** `EMU_WEBHOOK_URL` + `EMU_WEBHOOK_BEARER` accept
-  comma-separated lists (e.g. the live Lovable wall AND a local wall from one emulator).
+  comma-separated lists (e.g. the live (Cloudflare-hosted) wall AND a local wall from one emulator).
 
 ---
 

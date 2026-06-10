@@ -72,14 +72,19 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "ON Compare Wall" },
+      {
+        name: "description",
+        content: "Interactive in-store comparison wall for ON running shoes.",
+      },
+      { name: "author", content: "The Storytelling Company" },
+      { property: "og:title", content: "ON Compare Wall" },
+      {
+        property: "og:description",
+        content: "Interactive in-store comparison wall for ON running shoes.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
     ],
     links: [
       {
