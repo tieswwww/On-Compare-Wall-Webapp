@@ -93,13 +93,31 @@ loads. Re-run this any time to ship an update.
    ```
    Expect `{"ok":true}`.
 
-## Kiosk vs admin build
+## Two builds, two URLs (admin + kiosk)
 
-The hosted URL above is the **admin/browser** build (login gate + Supabase
-Realtime). The kiosk flags (`VITE_KIOSK_MODE`, `VITE_EVENT_TRANSPORT=mqtt`) are
-**build-time**, so the installation needs a build with those set. Options when we
-get to the POS step: a second deploy built with the kiosk env, or make the flags
-URL-overridable so one deploy serves both. See docs/PRODUCTION-RUNTIME-DESIGN.md.
+The kiosk flags are **build-time**, so there are two separate deploys from this
+one repo:
+
+| Build | URL | Command | Config | Behaviour |
+| ----- | --- | ------- | ------ | --------- |
+| **Admin** | `on-compare-wall.ties-webers.workers.dev` | `bun run deploy` | `wrangler.deploy.jsonc` | login / `?k=` gate, Supabase Realtime (online) |
+| **Kiosk** | `on-compare-wall-kiosk.ties-webers.workers.dev` | `bun run deploy:kiosk` | `wrangler.kiosk.jsonc` | no login, anon catalog, events via the local bridge WebSocket (offline) |
+
+**The kiosk URL is what TSS Play loads on every POS.** The `deploy:kiosk` script
+builds with `VITE_KIOSK_MODE=true VITE_EVENT_TRANSPORT=ws
+VITE_WS_URL=ws://localhost:8080/wall` baked in — so each POS's wall connects to
+**its own local bridge** at `ws://localhost:8080/wall`. One kiosk URL serves every
+POS; "version once, deploy once" still holds.
+
+> **POS check — `ws://localhost` from an `https://` page:** the kiosk page is
+> served over HTTPS but connects to an insecure `ws://localhost:8080`. Chromium
+> treats `localhost` as potentially-trustworthy, so this is normally allowed (not
+> blocked as mixed content) — but **confirm it connects inside Vuplex on the POS**.
+> If it's ever blocked, the bridge would need to serve `wss://` (TLS) instead.
+
+The kiosk worker needs **no secrets** — it reads the anon catalog with the
+publishable key (baked in at build time) and gets events from the local bridge;
+it never calls the service-role server functions.
 
 ## Notes / gotchas
 

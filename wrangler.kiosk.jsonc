@@ -1,0 +1,15 @@
+{
+  // KIOSK deploy config — used by `bun run deploy:kiosk`. Builds a SECOND Worker
+  // (separate URL from the admin one in wrangler.deploy.jsonc) that TSS Play loads
+  // on every POS. The build is made with the kiosk env (see the deploy:kiosk
+  // script): VITE_KIOSK_MODE=true (no login, anon catalog) +
+  // VITE_EVENT_TRANSPORT=ws + VITE_WS_URL=ws://localhost:8080/wall (the local
+  // bridge on each POS). One URL serves every POS — each connects to its own
+  // localhost bridge. See docs/DEPLOY.md.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "on-compare-wall-kiosk",
+  "compatibility_date": "2025-09-24",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "dist/server/server.js",
+  "assets": { "directory": "dist/client" },
+}
