@@ -469,3 +469,97 @@ CLOUD:  bridge webhook → /api/ingest/shoe-event             ├─► applySho
 
 Next: what the wall actually does with a resolved shoe — the render layer
 (Section 7).
+
+---
+
+## Section 7 — Render: the 2×2 wall and its motion language
+
+**Goal:** turn `{left: Shoe|null, right: Shoe|null}` into the wall — a 2×2
+grid (top = visual, bottom = stats, one column per stand), with everything
+animating *in and out* smoothly. Files: `routes/index.tsx` (composition) ·
+`TopQuadrant.tsx` · `BottomQuadrant.tsx` (+ `BarGraph`/`DataItem`) ·
+`KeyLookOverlay.tsx` · `IdleBackground.tsx` · `useScaledUnits.ts` ·
+`constants/animation.ts` · `sales-colors.ts`.
+
+### `src/routes/index.tsx` — composition + the key-look decision
+After the auth/catalog plumbing (Sections 4–5), the render itself:
+- `shoes.left/right` = `byEan.get(slots.X.ean)` — the zero-network resolve.
+- `videoUrls.left/right` = `splitByName[shoe.commercial_name]`.
+- Layered z-order: `IdleBackground` (On logo, shows through when idle) →
+  `PreloadProgress` (idle only) → `KeyLookOverlay` (behind the quadrants) →
+  the four quadrants.
+- **Key-look rule:** when exactly ONE shoe is scanned, its `lookbook_url`
+  image fills the *opposite, empty* half. A ref tracks whether both sides were
+  occupied last render: if the single-shoe state came from a **removal**, the
+  reveal waits `KEYLOOK_DELAY_AFTER_REMOVAL_MS` (1400 ms, lets the
+  compare→single transition settle); on a **fresh first scan** it's near-
+  immediate (300 ms).
+
+### The "hold the last shoe" pattern (used everywhere)
+React's natural behaviour — `shoe` becomes `null`, content vanishes — would
+make removals *pop* off screen. So every visual component keeps a
+`displayedShoe`/`displayedUrl` copy in state: when the live prop goes null,
+the copy sticks around for a timeout (`SHOE_HOLD_MS` = 1200 ms etc.) while the
+*visibility* (opacity/clip-path, driven by the live prop) animates out; only
+then is the content cleared. Live prop drives the animation, displayed copy
+drives the content.
+
+### `TopQuadrant.tsx` — video (or photo) + name
+- Renders the looping split video if the shoe has one; otherwise the static
+  `image_url` photo as fallback (most shoes have a photo but no video yet).
+- Video reveal is double-gated: `onLoadedData` fired AND
+  `VIDEO_REVEAL_DELAY_MS` (250 ms) elapsed — so it never fades in to a black
+  half-buffered frame. The photo equally fades in only once *its* URL has
+  loaded (tracked per-URL so a new shoe starts hidden).
+- Name + technology tags sit at a fixed offset from the quadrant bottom
+  (position identical with or without video) and fade/blur in and out.
+
+### `BottomQuadrant.tsx` — the two-stage stats reveal
+Two full-bleed layers animated with `clip-path: inset(...)`:
+1. the **sales-colour drape** drops from the top, then (150 ms stagger)
+2. the **black panel** drops over it carrying the stats.
+On close the order reverses (black retracts first). The colour and stats both
+use the hold pattern so a removed shoe closes with *its own* colour/data.
+Content: experience header, three `BarGraph`s (cushioning/responsiveness/
+stability as 1–5 segment bars), and `DataItem` blocks (Activity, Best For,
+Ride Type, Recommended Distance — `DataItem` splits values into lines on
+commas/`<br>`/newlines and renders nothing when empty).
+
+### `src/lib/sales-colors.ts` — name → drape colour
+On's `sales_color_name` looks like `"Black | Frost"`. `hexForSalesColor`
+resolves every token against a hand-picked ~200-entry hex map, then picks the
+**most saturated** hit (so "Black | Flame" drapes orange, not black), then runs
+a **brighten pass** in HSL: lift lightness to a floor of 0.59, clamp very-light
+colours below a ceiling, boost saturation so it pops, keep true neutrals
+neutral, preserve hue exactly. Fallback `#cccccc`. Presentational hint, not
+brand spec — tweak freely.
+
+### `KeyLookOverlay.tsx` — the lookbook half
+Full-height `object-cover` image on the empty half. Reveal is gated on image
+**decode** (`img.decode()`, not just `onload` — pixels ready to paint) AND the
+delay from `index.tsx`; then opacity + slight scale + a brightness(0→1) ramp
+fade it in. The delay is read through a ref so a delay change mid-transition
+can't re-arm a shorter timer (a real bug this guards against).
+
+### `src/hooks/useScaledUnits.ts` — height-only scaling (the Vuplex story)
+The wall is designed at **1920 px portrait height**; everything scales linearly
+with `window.innerHeight / 1920`, width ignored. Two hard-won constraints:
+- **All math in JS, plain `Npx` strings out.** The embedded Chromium in Vuplex
+  (TSS Play's webview) evaluates CSS `calc()`/`min()` inconsistently — fonts
+  collapsed to browser default before this rewrite.
+- **Hydration trick:** the server renders at scale 1. If the first client
+  render used the real scale, React would *record* the right values without
+  writing them (hydration trusts server markup) — huge UI until a resize. So
+  the first client render also uses scale 1, then a layout effect flips to the
+  real scale *before paint*: a genuine value change, so React writes the
+  styles. No flash, no mismatch.
+Helpers: `u(n)` spacing px, `ut(n)` text px (0.7× — designed sizes read ~2× too
+big on screen), `px(n)` a fontSize style. One module-level scale shared by all
+components; resize re-renders subscribers.
+
+### `src/constants/animation.ts`
+All motion timings in one file — the reveal delays, hold durations, stagger,
+and transition lengths referenced above — so the wall's motion language is
+tuned in one place. Each constant's comment says what it gates.
+
+Next: keeping all that media instant — the boot-time preloader (Section 8).
