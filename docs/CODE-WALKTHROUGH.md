@@ -379,3 +379,93 @@ authed ──► getShoeCatalog (admin)  ─┐
 
 Next: where those scan events come from — the pluggable transports and the
 cloud ingest route (Section 6).
+
+---
+
+## Section 6 — Live scans (transports + the cloud ingest route)
+
+**Goal:** get each `{event_type, side, ean}` from the bridge (Section 2) into
+React state — `slots.left.ean` / `slots.right.ean` — through whichever channel
+this deployment uses. The design move here is a **pluggable transport
+interface**: three adapters, one shared slot-update function, picked by an env
+var. Files: `transport/types.ts` · `transport/ws.ts` · `transport/mqtt.ts` ·
+`transport/realtime.ts` · `useShoeSlots.ts` · `shoe-event-ingest.server.ts` +
+the two `routes/api/.../shoe-event.ts` routes.
+
+### `src/lib/transport/types.ts` — the contract everything shares
+- **`SlotTransport`** — an adapter is just
+  `{ start(callbacks) → teardown }`. Callbacks: `onEvent(event)` per scan, and
+  optional `onSnapshot(rows)` for full state on connect.
+- **`coerceShoeEvent` / `parseShoeEvent`** — defensive validation of the raw
+  payload into a `ShoeEvent`; anything malformed becomes `null` and is ignored
+  (a bad message can never crash the wall). Fills `previous_ean`/`ts` defaults
+  since the bridge omits them.
+- **`applyShoeEvent(prev, event)`** — the *one* slot-update rule, pure and
+  shared by all transports: `removed` clears the side's EAN, `scanned`/
+  `swapped` set it. That's the entire state machine on the wall side — all the
+  hard debouncing already happened in the bridge filter (Section 1).
+
+### `src/lib/transport/ws.ts` — the installation path ("Option B", in use)
+Connects straight to the bridge's `/wall` WebSocket on the POS
+(`ws://localhost:8080/wall` — same uvicorn server from Section 2). Mirrors the
+bridge's contract exactly:
+- first message is the **snapshot** `{type:"snapshot", slots:{left,right}}` →
+  `onSnapshot` (so a reloaded wall instantly re-syncs both stands);
+- every later message is an event → `coerceShoeEvent` → `onEvent`;
+- **auto-reconnects every 2 s** (`onerror` → `close()` → `onclose` → retry), so
+  it recovers if the bridge restarts or the wall loaded first. Fully offline:
+  localhost only, no broker, no cloud.
+
+### `src/lib/transport/mqtt.ts` — the broker alternative (dormant)
+Web-MQTT over WebSocket to a local RabbitMQ (`ws://localhost:15675/ws`, topic
+`shoe-events`). Same payload, same `parseShoeEvent`. Offline-capable like ws,
+but needs RabbitMQ running on the POS — that's why the direct ws transport won.
+**No snapshot** on this path: kiosk slot state starts empty and builds from
+events. `mqtt` is imported dynamically so the (large) library never loads
+unless this transport is selected.
+
+### `src/lib/transport/realtime.ts` — the cloud/dev/admin path
+On start: one read of the `shoe_slots` table for the initial snapshot, then
+subscribes to the Supabase Realtime **`shoe-events` broadcast channel** and
+forwards each payload. This is the receiving end of the ingest route below.
+(`shoe_slots` isn't anon-readable, so an anon client just gets an empty
+snapshot — harmless, and the kiosk doesn't use this transport anyway.)
+
+### `src/hooks/useShoeSlots.ts` — the hook that ties it together
+Gated on `authState === "authed"` (Section 4) and client-only. Picks the
+adapter from `EVENT_TRANSPORT` (`realtime` default · `mqtt` · `ws`), starts it
+with two setState-wiring callbacks (`onEvent` → `applyShoeEvent`, `onSnapshot`
+→ overwrite both sides), and returns the live `{left, right}` slots. The
+teardown returned by `start()` is the effect cleanup.
+
+### The cloud ingest route — how scans reach Realtime in the first place
+`src/routes/api/ingest/shoe-event.ts` (+ the `/api/public/...` twin, same
+handler — the public path exists for callers that can't reach the authed-path
+URL shape) both POST into **`src/lib/shoe-event-ingest.server.ts`**:
+1. **Auth:** `Authorization: Bearer <NODE_RED_PASSWORD>` checked with
+   `safeEqual` (the same constant-time compare from Section 4) → 401 otherwise.
+2. **Validate:** zod-parse `{event_type, side, ean?}`; `scanned`/`swapped`
+   require an EAN.
+3. **previous_ean:** read the side's current `shoe_slots` row first, so the
+   broadcast can say what was replaced.
+4. **Broadcast first, persist second:** send the full payload on the
+   `shoe-events` channel (this is what `realtime.ts` receives — sub-second
+   latency), then update `shoe_slots` (the snapshot source for late joiners)
+   and append to `shoe_events` (the audit log, with the raw body).
+
+This is the path the bridge's **webhook** (Section 2) targets — so the full
+cloud chain is: bridge webhook → ingest route → Realtime broadcast → admin
+wall. The kiosk chain is just: bridge `/wall` ws → ws transport. Both end at
+the same `applyShoeEvent`.
+
+```
+KIOSK:  bridge /wall ws ──────────────────────────► ws.ts ──┐
+CLOUD:  bridge webhook → /api/ingest/shoe-event             ├─► applyShoeEvent → slots {left,right}
+          (Bearer + zod) → Realtime broadcast → realtime.ts ┘        │
+                          └→ shoe_slots (snapshot) + shoe_events (log)
+                                                                     ▼
+                                                       byEan.get(slots.X.ean) → render
+```
+
+Next: what the wall actually does with a resolved shoe — the render layer
+(Section 7).
