@@ -95,3 +95,90 @@ still carries the raw **EPC** — the EAN decode is the next stage.
 
 > Tuning: thresholds were calibrated via `calibrate.py` and live in `config.toml`
 > under `[filter]`; the comment there says to re-calibrate on the real stands.
+
+---
+
+## Section 2 — Bridge: getting the event out (decode + transports)
+
+**Goal of this stage:** take the `FilterEvent { event_type, side, epc }` from
+Section 1, decode the EPC to an EAN, update the bridge's own state, and deliver
+the event on **every configured channel independently** — the local `/wall`
+WebSocket (production), the cloud webhook (admin/testing), and optionally the
+MQTT gateway. One channel being down never stops the others.
+
+Files: `main.py` (wiring) · `decoder.py` (EPC→EAN) · `api.py` (FastAPI: `/wall`
++ status) · `webhook.py` · `mqtt_publisher.py` · `run_fake.py` (test variant).
+
+### `main.py` — the orchestrator
+`run()` is the production entry (`python -m rfid_bridge.main`):
+1. `load_config("config.toml")`, build a `BridgeState` (left/right `SideState`),
+   `init_state(state)` so the API can read it.
+2. Build a `GatewayPublisher` (MQTT, no-op unless configured) and `connect()` it.
+3. Define **`on_event(event)`** — the heart of this stage. For each FilterEvent:
+   - update that side's `SideState` (event_type, epc, and the decoded `ean` so the
+     `/wall` snapshot stays accurate);
+   - build the wall payload `{event_type, side, ean}` (ean omitted on `removed`);
+   - **deliver every way, independently:** `broadcast_wall()` (local WS) →
+     `publisher.publish()` (MQTT) → `send_webhook()` (cloud). Each is wrapped so a
+     failure in one doesn't stop the rest;
+   - record last webhook status on the side; `broadcast(asdict(state))` to refresh
+     the status screen.
+4. Wire `SideManager(cfg, on_event)`, `manager.start()`, and serve the FastAPI
+   `app` (from `api.py`) with uvicorn on `cfg.server_port` (**8080**).
+
+This is also why the kiosk build points at `ws://localhost:8080/wall` — `main`'s
+server and the `/wall` socket are the same uvicorn server on 8080.
+
+### `decoder.py` — EPC → EAN-13
+`decode_epc()` turns the 24-hex-char **SGTIN-96** EPC the tag carries into the
+**EAN-13** the catalog is keyed by:
+- checks the SGTIN-96 header (`0x30`), reads the GS1 **partition** to know how the
+  96 bits split into company-prefix vs item-reference, extracts both, strips the
+  indicator digit, and computes the GS1 **mod-10 check digit**.
+- returns `None` on anything malformed (wrong length, bad header, bad partition) —
+  which is why every output path checks for `None` before sending.
+- `encode_ean()` is the exact inverse (partition 5), used **only by the fake
+  reader** so `decode_epc(encode_ean(x)) == x` — i.e. the fake reader can emit
+  real EANs as valid EPCs.
+
+### `api.py` — the FastAPI server (two WebSockets + status screen)
+One `app` serves several things on port 8080:
+- **`/wall`** (the production transport): a wall connects, we `accept()`, add it to
+  `_wall_connections`, and **immediately send a snapshot** —
+  `{"type":"snapshot","slots":{left,right}}` from current `SideState.ean` — so a
+  freshly (re)loaded wall re-syncs both stands. Then we just hold the socket open;
+  the wall never sends. `broadcast_wall(payload)` (called by `on_event`) fans each
+  scan event to every connected wall. This is the exact contract the webapp's `ws`
+  adapter expects.
+- **`/ws`** + **`/`**: the **status/debug screen** — `/` serves `static/index.html`
+  (read with `encoding="utf-8"` — the fix for the `â€"` mojibake you saw on
+  Windows), `/ws` streams full `BridgeState` to it.
+- **`/config`** + **`/config/save`**: live filter tuning — POST new thresholds →
+  `app.state.on_config_update` hot-swaps them into the filters (the **Apply**
+  button), and `/config/save` writes them back to `config.toml`.
+- **`/health`**: returns the current state as JSON.
+
+### `webhook.py` — the cloud path
+`send_webhook(event, cfg)` POSTs `{event_type, side, ean}` to `cfg.url` (decoding
+the EAN first; bails if decode fails), with one retry. This is the **admin/online**
+path — it drives the cloud wall via the ingest route + Realtime. Today
+`config.toml`'s webhook URL still points at the dead old project (the harmless
+`404`s); the kiosk doesn't use this path at all.
+
+### `mqtt_publisher.py` — the (now-unused) gateway path
+`GatewayPublisher` publishes the same JSON to RabbitMQ over AMQP. It's lazy-loaded
+and fully optional (no-op if disabled / `aio_pika` missing / gateway down), so it
+never breaks the bridge. We **chose the direct `/wall` WebSocket ("Option B")** over
+this, so it's effectively dormant — kept for flexibility.
+
+### `run_fake.py` — the hardware-free test runner
+Same pipeline and the same `on_event` shape as `main`, but swaps the real reader
+for `FakeUhfReader` and runs an **auto-demo loop** (`demo_loop`) that places/swaps/
+removes a curated set of real EANs (chosen to exist in `compare_wall`). Key gotcha:
+it **defaults to port 8090** (`STATUS_PORT`), so to drive a kiosk build hard-wired
+to `:8080` you must run it with `STATUS_PORT=8080` — that was the "worked this
+morning, not now" mismatch.
+
+**End of the bridge.** From here a clean `{event_type, side, ean}` is on the
+`/wall` WebSocket (and/or webhook). Section 3 picks it up on the webapp side —
+starting with how the wall boots.
