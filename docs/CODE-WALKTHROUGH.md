@@ -604,3 +604,88 @@ stable public URLs (Section 5), so the cache entries stay valid — a signed URL
 with an expiry would bust the cache every refresh.
 
 Next: the two builds, env vars, and how it all ships (Section 9).
+
+---
+
+## Section 9 — Config & deploy: one codebase, two walls
+
+**Goal:** understand how a single codebase ships as **two different Workers** —
+the admin/cloud wall and the kiosk wall — with all behavioural differences
+driven by env vars, not separate code. Files: `config/runtime.ts` ·
+`vite.config.ts` · `wrangler.jsonc` / `wrangler.deploy.jsonc` /
+`wrangler.kiosk.jsonc` · `package.json` scripts. (Full how-to: docs/DEPLOY.md.)
+
+### `src/config/runtime.ts` — the switchboard
+Every fork in the app traces back to two `VITE_*` flags read here (baked in at
+**build** time — they're client-side env vars):
+- **`KIOSK_MODE`** (`VITE_KIOSK_MODE=true`) — Section 4's auth short-circuit +
+  Section 5's anon catalog path. Off by default.
+- **`EVENT_TRANSPORT`** (`VITE_EVENT_TRANSPORT`) — `realtime` (default) /
+  `ws` / `mqtt`, Section 6's adapter choice. Plus the connection settings:
+  `WS_URL` (default `ws://localhost:8082/wall` — note the kiosk *build* script
+  overrides this to `:8080`, where the bridge actually serves) and the
+  `MQTT_*` values for the dormant broker path.
+
+So the two shapes are:
+
+| | admin/cloud (default) | kiosk (installation) |
+|---|---|---|
+| auth | login gate / `?k=` token | none (instant `authed`) |
+| catalog | `getShoeCatalog` server fn (service role) | anon read of `compare_wall` view |
+| events | Supabase Realtime broadcast | direct ws to local bridge `:8080/wall` |
+| offline | needs cloud | fully offline after boot |
+
+### `vite.config.ts` — almost everything is in the preset
+`@lovable.dev/vite-tanstack-config` bundles all the plugins (TanStack Start,
+React, Tailwind, the Cloudflare plugin, path aliases, VITE_* injection…) — the
+header comment warns: **don't re-add them manually** or you get duplicate-
+plugin breakage. The only local addition: `server.entry: "server"` redirects
+TanStack Start's server entry to `src/server.ts` (the SSR error wrapper from
+Section 3) — `wrangler.jsonc`'s `main` alone wouldn't do that.
+
+### The three wrangler configs (why three!)
+- **`wrangler.jsonc`** — `main: src/server.ts` (the *source*). Used by the
+  Cloudflare **Vite plugin during `vite build`**, which builds the Worker from
+  source. Never used to deploy.
+- **`wrangler.deploy.jsonc`** — Worker `on-compare-wall`, `main:
+  dist/server/server.js` + `assets: dist/client` (the *build output*).
+  `wrangler deploy` can't run Vite, so it needs to be pointed at the artifacts.
+- **`wrangler.kiosk.jsonc`** — same idea, but Worker **`on-compare-wall-kiosk`**
+  — a second Worker with its own URL, deployed from a build made with the kiosk
+  env. One kiosk URL serves every POS; each loads it in TSS Play and connects
+  to its *own* `localhost:8080` bridge.
+
+### `package.json` — the two deploy lines
+```
+deploy:        vite build && wrangler deploy -c wrangler.deploy.jsonc
+deploy:kiosk:  VITE_KIOSK_MODE=true VITE_EVENT_TRANSPORT=ws \
+               VITE_WS_URL=ws://localhost:8080/wall \
+               vite build && wrangler deploy -c wrangler.kiosk.jsonc
+```
+Same source, different env at build time → the two walls. Since the flags are
+baked into the client bundle, changing a kiosk setting means **rebuilding and
+redeploying the kiosk Worker**, not flipping a dashboard variable.
+
+### Server secrets (per Worker, never in git)
+Set via `wrangler secret put … -c <config>`, read by the *server* code:
+`SUPABASE_URL` / `SUPABASE_PUBLISHABLE_KEY` / `SUPABASE_SERVICE_ROLE_KEY`
+(clients, Sections 4–5), `NODE_RED_PASSWORD` (ingest bearer, Section 6),
+`VIEWER_PASSWORD` + `VIEWER_ACCESS_TOKEN` (auth, Section 4). Secrets apply
+immediately, no redeploy. The kiosk Worker needs them too — its *server* still
+exists (SSR), even though the kiosk client never calls the authed fns.
+
+### The whole system, end to end
+```
+shoe on stand
+  → reader (antenna L/R) → SideFilter debounce → FilterEvent {type, side, epc}   [§1]
+  → decode EPC→EAN → /wall ws · webhook · (mqtt)                                  [§2]
+KIOSK:   /wall ws → ws transport ─────────────┐
+CLOUD:   webhook → ingest route → Realtime ───┤                                   [§6]
+                                              ▼
+  Worker boots wall [§3] → auth gate [§4] → catalog Map<ean,Shoe> [§5]
+                                              ▼
+  applyShoeEvent → slots → byEan.get(ean) → quadrants animate [§7]
+  (media already cached by the boot preloader [§8]; which build = env [§9])
+```
+
+*End of the walkthrough.*
