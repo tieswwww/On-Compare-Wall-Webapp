@@ -5,6 +5,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { CatalogRow } from "@/types/wall";
 import { selectImageUrl } from "@/lib/images";
 import { CATALOG_RELATION, SHOE_COLUMNS } from "@/lib/catalog-columns";
+import { buildSplitVideoMap } from "@/lib/split-videos";
 
 // CATALOG_RELATION / SHOE_COLUMNS are defined in src/lib/catalog-columns.ts and
 // shared with the kiosk anon-read path. The app's operational tables
@@ -27,8 +28,8 @@ export const getShoeByEan = createServerFn({ method: "POST" })
   });
 
 // Full catalog prefetch. Returns every shoe (used columns only) and a
-// pre-signed split-video URL keyed by commercial_name, so the client can
-// resolve every EAN scan locally without any further server calls.
+// split-video public URL keyed by commercial_name, so the client can resolve
+// every EAN scan locally without any further server calls.
 export const getShoeCatalog = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async () => {
@@ -50,83 +51,11 @@ export const getShoeCatalog = createServerFn({ method: "GET" })
       .select("commercial_name,video_filename");
     if (splitErr) throw new Error(splitErr.message);
 
-    // Pre-sign every split video URL once (7-day TTL). 12 rows total today,
-    // so this is cheap and removes the per-scan signing round-trip.
+    // The shoe-assets bucket is public-read, so build a stable public URL per
+    // split video (no signing/expiry; cacheable for offline). Same helper the
+    // kiosk anon path uses, so both produce identical URLs.
     const supabaseUrl = process.env.SUPABASE_URL!;
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-    const splitVideos: Record<string, string> = {};
-    await Promise.all(
-      (splitRows ?? []).map(async (row) => {
-        const path = `splits/${row.video_filename}`;
-        const res = await fetch(`${supabaseUrl}/storage/v1/object/sign/shoe-assets/${path}`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${serviceKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ expiresIn: SIGNED_URL_TTL_SECONDS }),
-        });
-        if (!res.ok) {
-          console.error("[getShoeCatalog] sign failed", row.commercial_name, res.status);
-          return;
-        }
-        const { signedURL } = (await res.json()) as { signedURL: string };
-        splitVideos[row.commercial_name] = `${supabaseUrl}/storage/v1${signedURL}`;
-      }),
-    );
+    const splitVideos = buildSplitVideoMap(supabaseUrl, splitRows ?? []);
 
     return { shoes, splitVideos };
-  });
-
-// In-memory cache of signed URLs keyed by commercial_name. The Worker
-// instance keeps this between requests, so repeated scans of the same shoe
-// reuse the same URL — the browser then gets a real cache hit instead of
-// re-downloading the video on every scan.
-const SIGNED_URL_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
-const SIGNED_URL_REFRESH_BEFORE_MS = 60 * 60 * 1000; // refresh within last hour
-const signedUrlCache = new Map<string, { url: string; expiresAt: number }>();
-
-export const getSplitVideoUrl = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ commercial_name: z.string().min(1).max(128) }).parse(input))
-  .handler(async ({ data }) => {
-    const cached = signedUrlCache.get(data.commercial_name);
-    if (cached && cached.expiresAt - Date.now() > SIGNED_URL_REFRESH_BEFORE_MS) {
-      return { url: cached.url };
-    }
-
-    const { data: row } = await supabaseAdmin
-      .from("shoe_split_videos")
-      .select("video_filename")
-      .eq("commercial_name", data.commercial_name)
-      .maybeSingle();
-
-    if (!row) return { url: null };
-
-    // Use the storage REST API directly. The supabase-js SDK's
-    // createSignedUrl() returns "Object not found" inside the Cloudflare
-    // Worker runtime for these files, even when the object clearly exists
-    // (direct REST works). Calling the endpoint via fetch sidesteps the issue.
-    const supabaseUrl = process.env.SUPABASE_URL!;
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-    const path = `splits/${row.video_filename}`;
-    const res = await fetch(`${supabaseUrl}/storage/v1/object/sign/shoe-assets/${path}`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${serviceKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ expiresIn: SIGNED_URL_TTL_SECONDS }),
-    });
-    if (!res.ok) {
-      console.error("[getSplitVideoUrl] sign failed", res.status);
-      return { url: null };
-    }
-    const { signedURL } = (await res.json()) as { signedURL: string };
-    const url = `${supabaseUrl}/storage/v1${signedURL}`;
-    signedUrlCache.set(data.commercial_name, {
-      url,
-      expiresAt: Date.now() + SIGNED_URL_TTL_SECONDS * 1000,
-    });
-    return { url };
   });

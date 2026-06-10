@@ -7,22 +7,20 @@
 import { supabase } from "@/integrations/supabase/client";
 import { CATALOG_RELATION, SHOE_COLUMNS } from "@/lib/catalog-columns";
 import { selectImageUrl } from "@/lib/images";
+import { buildSplitVideoMap } from "@/lib/split-videos";
 import type { CatalogRow, Shoe } from "@/types/wall";
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 
 /**
  * Kiosk catalog read — client-side, anon key, no login.
  *
  * The installation has no viewer session, so it can't call the service-role
- * `getShoeCatalog` server fn. Instead it reads the **anon-readable**
- * `compare_wall` view directly with the publishable key. Returns the same
- * `{ shoes, splitVideos }` shape as the server fn so the wall renders
- * identically (see src/routes/index.tsx).
- *
- * Note: `splitVideos` is empty here. Those URLs are signed from a *private*
- * bucket, which needs service-role — not available to the anon kiosk. Split
- * videos are a separate (currently blocked) data track; offline split-video
- * delivery is part of the production-runtime work, not this path.
- * See docs/PRODUCTION-RUNTIME-DESIGN.md.
+ * `getShoeCatalog` server fn. Instead it reads, with the publishable key, the
+ * **anon-readable** `compare_wall` view plus `shoe_split_videos`, and builds the
+ * same `{ shoes, splitVideos }` shape as the server fn so the wall renders
+ * identically (see src/routes/index.tsx). Split URLs are public (the shoe-assets
+ * bucket is public-read), so no signing/service-role is needed.
  */
 export async function getCatalogFromView(): Promise<{
   shoes: Shoe[];
@@ -40,5 +38,17 @@ export async function getCatalogFromView(): Promise<{
     return { ...rest, image_url: selectImageUrl(row) };
   });
 
-  return { shoes, splitVideos: {} };
+  // Split videos: read the (anon-readable) mapping and build public URLs.
+  // Non-fatal — if the table isn't readable yet, the wall just shows no split.
+  let splitVideos: Record<string, string> = {};
+  const { data: splitRows, error: splitErr } = await supabase
+    .from("shoe_split_videos")
+    .select("commercial_name,video_filename");
+  if (splitErr) {
+    console.error("[kiosk] shoe_split_videos read failed", splitErr.message);
+  } else {
+    splitVideos = buildSplitVideoMap(SUPABASE_URL, splitRows ?? []);
+  }
+
+  return { shoes, splitVideos };
 }

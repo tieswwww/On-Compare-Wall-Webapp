@@ -98,10 +98,10 @@ loads. Re-run this any time to ship an update.
 The kiosk flags are **build-time**, so there are two separate deploys from this
 one repo:
 
-| Build | URL | Command | Config | Behaviour |
-| ----- | --- | ------- | ------ | --------- |
-| **Admin** | `on-compare-wall.ties-webers.workers.dev` | `bun run deploy` | `wrangler.deploy.jsonc` | login / `?k=` gate, Supabase Realtime (online) |
-| **Kiosk** | `on-compare-wall-kiosk.ties-webers.workers.dev` | `bun run deploy:kiosk` | `wrangler.kiosk.jsonc` | no login, anon catalog, events via the local bridge WebSocket (offline) |
+| Build     | URL                                             | Command                | Config                  | Behaviour                                                               |
+| --------- | ----------------------------------------------- | ---------------------- | ----------------------- | ----------------------------------------------------------------------- |
+| **Admin** | `on-compare-wall.ties-webers.workers.dev`       | `bun run deploy`       | `wrangler.deploy.jsonc` | login / `?k=` gate, Supabase Realtime (online)                          |
+| **Kiosk** | `on-compare-wall-kiosk.ties-webers.workers.dev` | `bun run deploy:kiosk` | `wrangler.kiosk.jsonc`  | no login, anon catalog, events via the local bridge WebSocket (offline) |
 
 **The kiosk URL is what TSS Play loads on every POS.** The `deploy:kiosk` script
 builds with `VITE_KIOSK_MODE=true VITE_EVENT_TRANSPORT=ws
