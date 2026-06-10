@@ -287,3 +287,95 @@ The **kiosk skips all of this** (authed immediately, anon catalog, no server fns
 Auth only matters for the admin build + cloud ingest.
 
 Next: the catalog — `getShoeCatalog` vs `getCatalogFromView`, and the in-memory map (Section 5).
+
+---
+
+## Section 5 — The catalog (one prefetch, zero per-scan network)
+
+**Goal:** load *every* shoe once, right after auth, into an in-memory
+`Map<ean, Shoe>` — so when a scan arrives later, resolving "EAN → full shoe
+data" is a synchronous map lookup, no network. This is the core performance/
+offline decision of the whole wall. Files: `catalog-columns.ts` ·
+`shoes.functions.ts` (admin path) · `catalog-anon.ts` (kiosk path) ·
+`images.ts` · `split-videos.ts` · the query + `byEan` map in `routes/index.tsx`.
+
+### `src/lib/catalog-columns.ts` — the single source of truth
+Both read paths select from the same place with the same columns:
+- **`CATALOG_RELATION = "compare_wall"`** — an **anon-readable view** in the
+  `on-showroom-data` Supabase project, keyed by Sample EAN, built to match the
+  column list 1:1.
+- **`SHOE_COLUMNS`** — the exact columns the wall renders (name, colorway,
+  stack/drop/weight numbers, the three 1–5 scales, activity/ride-type text,
+  three image-source columns, `lookbook_url`). Kept in sync by hand with
+  `CatalogRow`/`Shoe` in `src/types/wall.ts` and with the view definition.
+
+Because both paths share this file, the admin and kiosk catalogs can't drift.
+
+### `src/lib/shoes.functions.ts` — the admin/server path
+Two server functions, both gated by `requireSupabaseAuth` (Section 4) and using
+`supabaseAdmin` (service-role) on the server:
+- **`getShoeCatalog`** (the one actually used at boot): selects all rows from
+  `compare_wall`, collapses the three image columns into one `image_url` via
+  `selectImageUrl`, **strips the raw image-source columns from the wire
+  payload** (client never needs them), then reads `shoe_split_videos` and
+  builds the `{ commercial_name → public video URL }` map. Returns
+  `{ shoes, splitVideos }`.
+- **`getShoeByEan`**: single-shoe lookup by EAN. Same shape, same image
+  coalescing — exists for ad-hoc/debug use; the wall itself never calls it per
+  scan (that's the whole point of the prefetch).
+
+### `src/lib/catalog-anon.ts` — the kiosk path
+The kiosk has **no session** (Section 4 short-circuit), so it can't call the
+authed server fn. `getCatalogFromView()` does the same read **client-side with
+the anon/publishable key** against the anon-readable `compare_wall` view +
+`shoe_split_videos`, and returns the **identical `{ shoes, splitVideos }`
+shape** — so the rest of the app doesn't know or care which path ran.
+- Split-video read failure is **non-fatal** (logged; the wall just shows static
+  photos) — the kiosk should never be killed by a missing nice-to-have table.
+- **Import discipline (the subtle bit):** this module imports the *browser*
+  Supabase client, which touches `localStorage` at module load — so it must
+  never be statically imported by server-reachable code. It's loaded **only via
+  dynamic `import()` inside the queryFn** in `index.tsx`, which only runs
+  client-side. It's deliberately *not* named `*.client.*` so that deliberate
+  dynamic import isn't blocked by the build's import-protection guard.
+
+### `src/lib/images.ts` — `selectImageUrl`
+One tiny shared rule: best image = `gallery_image_url` → first of
+`highlight_image_urls` → `thumbnail_url` → `null`. Shared so every path
+collapses the three source columns the same way.
+
+### `src/lib/split-videos.ts` — stable public video URLs
+Split (alpha/transparent) clips live in the **public-read** `shoe-assets`
+bucket under `splits/`. `buildSplitVideoMap()` turns `shoe_split_videos` rows
+into `{ commercial_name → URL }` using plain public-object URLs — **no signing,
+no expiry**, which matters twice: the anon kiosk needs no service role to build
+them, and the URLs are stable so the browser/preloader can cache them.
+Note the map is keyed by **commercial_name**, not EAN — one video covers every
+colorway of a model.
+
+### `src/routes/index.tsx` — the query + the map
+```ts
+useQuery({
+  queryKey: ["shoe-catalog", KIOSK_MODE ? "kiosk" : "server"],
+  queryFn: () => KIOSK_MODE ? import("@/lib/catalog-anon")... : getShoeCatalog(),
+  enabled: authState === "authed",       // gated on Section 4
+  staleTime: 1h, gcTime: Infinity,       // fetch once, keep forever
+})
+```
+Then two memos make it usable:
+- **`byEan`** — `Map<ean, Shoe>` over `catalog.data.shoes`. Every scan resolves
+  via `byEan.get(ean)`.
+- **`splitByName`** — the `{ commercial_name → video URL }` record.
+
+```
+authed ──► getShoeCatalog (admin)  ─┐
+       └─► getCatalogFromView (kiosk) ┴─► { shoes, splitVideos }
+                                            │            │
+                                            ▼            ▼
+                                     Map<ean, Shoe>   splitByName
+                                            │
+                          scan event (ean) ─┴─► byEan.get(ean) → render (no network)
+```
+
+Next: where those scan events come from — the pluggable transports and the
+cloud ingest route (Section 6).
