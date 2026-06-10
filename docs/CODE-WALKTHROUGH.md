@@ -237,3 +237,53 @@ GET kiosk URL → Cloudflare server.ts.fetch → TanStack server-entry → route
 ```
 
 Next: the index route's first act — the **auth gate** (Section 4).
+
+---
+
+## Section 4 — The auth gate
+
+**Goal:** decide whether to show the wall. State machine `checking → authed |
+denied`, three ways in. Files: `useWallAuth.ts` · `access.functions.ts` ·
+`secure.ts` · `auth-middleware.ts`.
+
+### `src/hooks/useWallAuth.ts` — the client state machine
+- **Kiosk short-circuit:** if `KIOSK_MODE`, `authState` starts **`authed`** and the
+  effect returns immediately — no session, no network (offline-friendly; reads the
+  anon catalog instead).
+- **Browser/admin:** starts `checking`, then: existing session → `authed`; else a
+  `?k=` token → `exchangeAccessToken` → `setSession` → **strip token from URL**
+  (success or failure) → `authed`; else → `denied` (login form).
+- **`handleLogin`** — username/password fallback via `signInWithUsername`.
+- `authState` gates everything downstream (catalog query + `useShoeSlots` are
+  guarded on `authed`).
+
+### `src/lib/access.functions.ts` — auth server fns
+Two service accounts: `viewer@local.app` (display) and `node-red@local.app`
+(scanner/ingest).
+- **`exchangeAccessToken`** (`?k=`): validates the token vs `VIEWER_ACCESS_TOKEN`
+  with **`safeEqual`**, ensures users exist, mints a viewer session.
+- **`signInWithUsername`** (form): username `viewer`/`user` + viewer password.
+- **`ensureUser`**: creates only if missing — never updates the password on login,
+  because Supabase revokes all refresh tokens on a password change (would log out
+  every other tab/kiosk).
+
+### `src/lib/secure.ts` — `safeEqual`
+Constant-time compare (length-bail then XOR every char, no early exit) so timing
+doesn't leak how many token chars matched. Shared with the ingest bearer check.
+
+### `src/integrations/supabase/auth-middleware.ts` — `requireSupabaseAuth`
+Server gate on the admin server fns: reads `Authorization: Bearer <token>`,
+validates via `getClaims`, injects `{ supabase, userId, claims }`. Pairs with
+`start.ts`'s `attachSupabaseAuth` (which sets that header).
+
+### How it connects
+```
+?k= token → exchangeAccessToken (safeEqual) ─┐
+username/pw → signInWithUsername ────────────┤→ setSession (localStorage)
+                                              ▼
+        attachSupabaseAuth forwards Bearer → requireSupabaseAuth validates → getShoeCatalog runs
+```
+The **kiosk skips all of this** (authed immediately, anon catalog, no server fns).
+Auth only matters for the admin build + cloud ingest.
+
+Next: the catalog — `getShoeCatalog` vs `getCatalogFromView`, and the in-memory map (Section 5).
