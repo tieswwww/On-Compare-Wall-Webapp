@@ -149,12 +149,20 @@ project, so it logs harmless `404`s. The **kiosk ignores the webhook entirely**
 mirror scans online — then it gets repointed at the admin ingest URL (+ matching
 the `Authorization: Bearer` header).
 
+## Offline boot (service worker)
+
+TSS Play does **not** reload the asset offline (a no-internet restart shows
+"unable to load content"), so the kiosk caches **itself** via a service worker
+(`public/sw.js`, registered kiosk-only by `src/lib/register-sw.ts`). After one
+full **online** session it serves the app shell + catalog reads + media from the
+Cache API offline, so the wall boots and renders with no internet; live scans
+still come from the local bridge WebSocket. ⚠️ Requires Vuplex/Chromium to
+support service workers — confirm on the POS.
+
 ## Still on the roadmap
 
-- **Durable offline cache** (service worker): today the catalog + media are cached
-  **in-session**; surviving a no-internet daily restart needs a service worker.
 - **Data gaps** (data-side): some shoes have sparse `compare_wall` rows; lookbook
   and `weight_g` backfills.
-- **Vuplex confirmation**: confirm `ws://localhost` connects from the HTTPS kiosk
-  page inside TSS Play (works in a normal browser; if Vuplex blocks it, the bridge
-  serves `wss://`).
+- **Vuplex confirmation**: (a) the service worker actually caches offline inside
+  Vuplex; (b) `ws://localhost` connects from the HTTPS kiosk page in Vuplex (works
+  in a normal browser; if blocked, the bridge serves `wss://`).
