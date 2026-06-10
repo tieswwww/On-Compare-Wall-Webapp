@@ -622,9 +622,9 @@ Every fork in the app traces back to two `VITE_*` flags read here (baked in at
   Section 5's anon catalog path. Off by default.
 - **`EVENT_TRANSPORT`** (`VITE_EVENT_TRANSPORT`) — `realtime` (default) /
   `ws` / `mqtt`, Section 6's adapter choice. Plus the connection settings:
-  `WS_URL` (default `ws://localhost:8082/wall` — note the kiosk *build* script
-  overrides this to `:8080`, where the bridge actually serves) and the
-  `MQTT_*` values for the dormant broker path.
+  `WS_URL` (default `ws://localhost:8080/wall`, where the bridge serves; the
+  kiosk *build* script also sets it explicitly) and the `MQTT_*` values for
+  the dormant broker path.
 
 So the two shapes are:
 
@@ -687,5 +687,3 @@ CLOUD:   webhook → ingest route → Realtime ───┤                     
   applyShoeEvent → slots → byEan.get(ean) → quadrants animate [§7]
   (media already cached by the boot preloader [§8]; which build = env [§9])
 ```
-
-*End of the walkthrough.*

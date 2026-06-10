@@ -40,7 +40,7 @@ export const EVENT_TRANSPORT: EventTransport =
  * snapshot of current slot state, then each scan as it happens. Same
  * `{event_type, side, ean}` event payload. See src/lib/transport/ws.ts.
  */
-export const WS_URL = import.meta.env.VITE_WS_URL ?? "ws://localhost:8082/wall";
+export const WS_URL = import.meta.env.VITE_WS_URL ?? "ws://localhost:8080/wall";
 
 /**
  * MQTT (Web-MQTT over WebSocket) connection settings, used only when
