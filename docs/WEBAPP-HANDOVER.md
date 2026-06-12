@@ -172,7 +172,8 @@ Generated/vendored files (`components/ui/**`, `routeTree.gen.ts`, the supabase `
 ## 5. How the key pieces work
 
 - **Catalog prefetch (`getShoeCatalog`, server fn, service-role):** on boot (once authed) the
-  wall downloads the whole `compare_wall` view + a map of pre-signed split-video URLs, cached
+  wall downloads the whole `compare_wall` view + a map of public split-video URLs (the
+  `shoe-assets` bucket is public-read — no signing/expiry, so they're cacheable), cached
   by TanStack Query (`staleTime: 1h`). Every scan then resolves from an in-memory
   `Map<ean, Shoe>` — **no per-scan server call**. `selectImageUrl` coalesces the three image
   columns into one `image_url`.

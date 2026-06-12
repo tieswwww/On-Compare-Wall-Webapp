@@ -88,9 +88,10 @@ server), so the same URL + anon key appear under both names. That's expected, no
    to 8080** — run the emulator on a different port (see Testing).
 7. **`NODE_RED_PASSWORD` is a shared secret.** The value in `.env` must match the bearer
    token the emulator/bridge sends, or ingest returns 401.
-8. **Realtime transport.** Today scans flip the wall via Supabase Realtime (cloud
-   broadcast). The production direction is **local MQTT** (offline-first) — a future
-   change; the JSON payload (`{event_type, side, ean}`) stays the same.
+8. **Realtime transport (this local/admin build).** Scans flip the wall via Supabase
+   Realtime (cloud broadcast). The installation instead uses the **direct bridge
+   WebSocket** (`VITE_EVENT_TRANSPORT=ws` → `ws://localhost:8080/wall`, decided
+   2026-06-09); the JSON payload (`{event_type, side, ean}`) is the same either way.
 
 ---
 
